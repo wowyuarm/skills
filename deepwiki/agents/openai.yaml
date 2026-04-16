@@ -1,0 +1,4 @@
+interface:
+  display_name: "DeepWiki"
+  short_description: "Look up DeepWiki repo docs fast"
+  default_prompt: "Use $deepwiki to inspect a public GitHub repo through DeepWiki before digging through source files."

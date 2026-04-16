@@ -1,0 +1,24 @@
+proxies:
+  - name: "__NODE_NAME__"
+    type: vless
+    server: __SERVER_ADDRESS__
+    port: 443
+    uuid: __UUID__
+    network: tcp
+    tls: true
+    udp: true
+    flow: xtls-rprx-vision
+    servername: __SERVER_NAME__
+    client-fingerprint: chrome
+    reality-opts:
+      public-key: __PUBLIC_KEY__
+      short-id: __SHORT_ID__
+
+proxy-groups:
+  - name: "PROXY"
+    type: select
+    proxies:
+      - "__NODE_NAME__"
+
+rules:
+  - MATCH,PROXY
