@@ -68,6 +68,21 @@ Check:
 
 Do not assume config syntax validation proves bind success.
 
+## Symptom: client shows "connected" (with latency number) but no sites load
+
+This looks like handshake-level failure even though the client UI says it is connected. Happens often with iOS Shadowrocket and REALITY.
+
+Mechanism: clients report a latency number as soon as raw TCP 443 accepts. REALITY happily accepts any TCP 443 connection because its fallback forwards unknown handshakes to the disguised `dest` (for example `www.cloudflare.com:443`). So the client's latency test succeeds, the client marks the node "connected", but the actual VLESS handshake silently fails because a REALITY field is wrong or missing.
+
+Decisive check: read the Xray journal and filter by the client's real IP. If the client has been connecting for several minutes and no log line shows its source IP inside `from <ip>:<port> accepted tcp:...`, the client's VLESS handshake never reached the proxy logic. Do not edit server config. Fix the client.
+
+Most common client-side causes for this pattern:
+- URL import dropped one of `flow`, `publicKey`, `shortId`, or `fingerprint`
+- client's REALITY field name differs from the URL param name and the import silently ignored it
+- older client version has partial REALITY support
+
+Fix: manually enter every REALITY field in the client UI, do not rely on URL / QR import. If the app still fails after manual entry, switch to a client with first-class REALITY support (for example V2Box on iOS).
+
 ## Symptom: client works but speed is poor
 
 Most likely causes:

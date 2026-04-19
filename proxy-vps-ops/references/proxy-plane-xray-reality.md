@@ -103,6 +103,12 @@ Useful isolation steps:
 2. if needed, temporarily test a non-privileged port such as `8443`
 3. if that changes behavior, focus on service user and bind permissions before blaming REALITY
 
+## Install-order gotcha: restart after writing the override
+
+The official `XTLS/Xray-install` script does `systemctl enable --now xray` as part of install. If you then write a drop-in like `/etc/systemd/system/xray.service.d/20-local-root.conf` with `User=root`, a subsequent `systemctl enable --now xray` is a no-op because the unit is already enabled and running. The old `nobody` process keeps running, `systemctl show xray -p User` reports `root`, and you get a very confusing split state where the effective user disagrees with the actual process user.
+
+Always run `systemctl restart xray` after writing or changing the override, not just `daemon-reload` + `enable --now`. Verify with `ps -o pid,user,cmd -p $(pgrep -f 'xray run')` and `ss -tlnp | grep ':443 '` immediately after.
+
 ## Listener-first troubleshooting principle
 
 For `connection refused`, prove or disprove listener creation before touching client config.

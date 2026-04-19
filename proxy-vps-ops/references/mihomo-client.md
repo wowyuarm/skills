@@ -64,6 +64,17 @@ When debugging, separate:
 - assuming `delay test failed` always means the server is down
 - debugging TUN or DNS before proving raw TCP reachability to the node
 
+## iOS clients and REALITY URL import
+
+iOS Shadowrocket historically has incomplete or buggy REALITY support. A VLESS URL that works fine in Mihomo / Clash Verge Rev can import into Shadowrocket as a node that silently drops one or more of `flow`, `publicKey`, `shortId`, or `fingerprint`. Symptom: the node shows a latency number and appears "connected", but no traffic from the iPhone ever appears in the Xray journal.
+
+For iOS, prefer this order:
+1. Manually create the node in Shadowrocket and enter every REALITY field by hand, including `Flow`, `Fingerprint`, `PublicKey`, `ShortID`, `SNI`. Do not use URL or QR import.
+2. If the same manual config still fails, switch to an iOS client with first-class VLESS + REALITY + Vision support (V2Box, Streisand, Karing were working options as of writing).
+3. On iOS only one VPN profile can be active at a time. Tailscale and Shadowrocket compete for that slot. The proxy does not need Tailscale on the phone: Shadowrocket reaches the VPS over its public IP on the open internet.
+
+When debugging iOS, grep the Xray journal for the phone's carrier IP range and the minute the user started the test. Zero matching lines is a decisive verdict that the client never completed the VLESS handshake; server config is fine and the investigation belongs on the phone.
+
 ## Minimal-first client guidance
 
 For the first pass:
