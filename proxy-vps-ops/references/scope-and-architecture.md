@@ -73,6 +73,27 @@ Use this stack unless the user asks otherwise:
 - VLESS + REALITY for the public proxy path
 - Mihomo / Clash Verge Rev on the client
 
+## Alternative stack branch: Surge + Snell (+ ShadowTLS)
+
+Use this only when the user clearly wants a Surge-native path or is already committed to Snell.
+
+Good fit when:
+- user mainly uses Surge
+- user wants Snell specifically
+- Apple-centric client flow matters more than broad client compatibility
+
+Not default when:
+- user wants broad cross-client compatibility
+- Mihomo / Clash path already works
+- user does not need Snell-specific behavior
+
+If this branch is chosen:
+- keep Tailscale as management plane
+- keep same layered verification model
+- prefer Snell v4 as stable baseline
+- use Snell v5 only when both ends support it and its extra features matter
+- if ShadowTLS wraps Snell, prefer exposing ShadowTLS public port and keeping raw Snell upstream local-only when practical
+
 ## Primary mental model
 
 When something breaks, reason by layers:

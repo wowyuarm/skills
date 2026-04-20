@@ -43,6 +43,16 @@ At minimum, know how to recover or reproduce:
 - firewall posture
 - tailnet identity and intended management path
 
+Simple timestamped backup pattern:
+
+```bash
+backup_dir=/root/proxy-backups/$(date +%Y%m%d-%H%M%S)
+mkdir -p "$backup_dir"
+cp -a /usr/local/etc/xray/config.json "$backup_dir"/
+systemctl cat xray > "$backup_dir"/xray.unit.txt
+ufw status numbered > "$backup_dir"/ufw-status.txt
+```
+
 Do not leave recovery dependent on memory alone.
 
 ## Update strategy
@@ -53,6 +63,26 @@ When updating packages or Xray/Tailscale:
 3. re-check listener state
 4. re-check local and external TCP reachability
 5. note the result in the state file
+
+## Long-running apt over SSH
+
+On slow provider links (observed: LightNode SG egress ~120 KB/s, `linux-firmware` alone ~316 MB), a naive `ssh root@host 'apt-get dist-upgrade'` pattern is fragile. If the SSH client hits a timeout or disconnects, the reader at the end of the remote shell pipeline can die and `apt-get` either stalls or is killed by SIGPIPE mid-run, leaving the system in a partially-upgraded state.
+
+For any multi-minute apt or dpkg operation started remotely, detach it from the SSH session:
+
+```bash
+systemd-run --unit=apt-dist-upgrade \
+  --description="apt dist-upgrade" \
+  --property=StandardOutput=file:/tmp/apt-upgrade.log \
+  --property=StandardError=file:/tmp/apt-upgrade.log \
+  /bin/bash -c 'DEBIAN_FRONTEND=noninteractive apt-get -y \
+    -o Dpkg::Options::=--force-confold \
+    -o Dpkg::Options::=--force-confdef \
+    -o Acquire::Retries=3 \
+    dist-upgrade'
+```
+
+Then poll `systemctl is-active apt-dist-upgrade` and tail `/tmp/apt-upgrade.log`. The run survives your SSH session ending and keeps a complete log on disk.
 
 ## SSH exposure
 
