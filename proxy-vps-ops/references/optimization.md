@@ -43,6 +43,11 @@ These are often reasonable defaults for a personal node:
 
 Apply only if supported by the kernel and verify that the service still behaves correctly after the change.
 
+Do not jump straight to heavier moves such as kernel replacement, XanMod, or manual BBR v3 builds during first-pass optimization. Those are recovery-sensitive changes and do not fix a bad provider route. Use them only when:
+- user explicitly wants that risk
+- a recovery path exists
+- basic route-quality evidence says the line itself is not main bottleneck
+
 ## Client-side optimization
 
 After the server and route are understood, inspect:

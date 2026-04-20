@@ -1,6 +1,6 @@
 ---
 name: proxy-vps-ops
-description: Plan, bootstrap, operate, verify, troubleshoot, optimize, migrate, and rebuild a self-hosted VPS used as a personal proxy node. Use when working on VPS region or billing choices, Ubuntu baseline setup, Tailscale management access, Xray-core with VLESS + REALITY deployment, Mihomo/Clash client configuration, listener or firewall debugging, day-2 maintenance, performance tuning, or node replacement and recovery.
+description: Plan, bootstrap, operate, verify, troubleshoot, optimize, migrate, and rebuild a self-hosted VPS used as a personal proxy node. Use when working on VPS region or billing choices, Ubuntu baseline setup, Tailscale management access, Xray-core with VLESS + REALITY deployment, Mihomo/Clash client configuration, optional Surge + Snell + ShadowTLS alternative deployments when explicitly requested, listener or firewall debugging, day-2 maintenance, performance tuning, or node replacement and recovery.
 ---
 
 # Proxy VPS Ops
@@ -61,6 +61,10 @@ Use this default unless the user asks for a different stack or the environment c
 - UFW for simple firewall management
 - Minimal first iteration: no panel, no reverse proxy, no CDN, no domain, no extra protocols
 
+Alternative branch, only when user explicitly wants it:
+- Surge-focused client path with Snell, optionally wrapped by ShadowTLS
+- Keep this as opt-in, not default
+
 If the user mainly wants to validate provider quality before committing to the full proxy stack, it is acceptable to suggest a simpler baseline such as WireGuard for line testing. Still keep management and proxy roles conceptually separate.
 
 ## Request classification
@@ -91,12 +95,14 @@ Use for:
 Read:
 - [`references/proxy-plane-xray-reality.md`](references/proxy-plane-xray-reality.md)
 - [`references/mihomo-client.md`](references/mihomo-client.md)
+- [`references/alternative-stack-snell-shadowtls.md`](references/alternative-stack-snell-shadowtls.md) when the user asks for Surge, Snell, or ShadowTLS
 
 Use for:
 - Xray install and config
 - REALITY material generation
 - service management
 - Mihomo/Verge Rev node creation
+- optional Snell + ShadowTLS deployment planning when explicitly requested
 
 Use bundled helpers when useful:
 - [`scripts/generate_reality_materials.sh`](scripts/generate_reality_materials.sh)
@@ -183,6 +189,7 @@ Do not skip layers. "Service active" does not prove "listener exists". "Firewall
 - Preserve management access before tightening exposure.
 - Keep management plane and proxy plane conceptually separate.
 - Prefer maintained clients and defaults over abandoned tools.
+- Prefer inspectable manual steps over opaque one-click installers; borrow patterns, not black boxes.
 - Treat provider quality as a first-class variable; do not over-credit protocol tweaks.
 - Avoid exposing secrets in chat output unless the user explicitly needs the raw values.
 

@@ -79,6 +79,19 @@ ss -ltnp
 ip -brief addr
 ```
 
+## Third-party script stance
+
+If you deliberately use a community install script, prefer download-then-run over `curl | sh`:
+
+```bash
+curl -fsSL <url> -o /tmp/install.sh
+less /tmp/install.sh
+bash /tmp/install.sh
+rm -f /tmp/install.sh
+```
+
+Do this only when you already decided that script is worth trusting. Default stance stays manual and inspectable.
+
 ## What not to do early
 
 Do not start with:
