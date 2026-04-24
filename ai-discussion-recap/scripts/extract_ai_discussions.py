@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extract high-signal Claude Code or Codex discussion turns from local session logs."""
+"""Extract high-signal Claude Code, Codex, or Pi discussion turns from local session logs."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from typing import Any
 
 CLAUDE_PROJECTS_DIR = Path.home() / '.claude' / 'projects'
 CODEX_SESSIONS_DIR = Path.home() / '.codex' / 'sessions'
+PI_SESSIONS_DIR = Path.home() / '.pi' / 'agent' / 'sessions'
 DEFAULT_DAYS = 14
 DEFAULT_MAX_SESSIONS = 8
 PREVIEW_LIMIT = 280
@@ -91,7 +92,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--project-slug', help='Explicit Claude project slug under ~/.claude/projects/')
     parser.add_argument(
         '--source',
-        choices=['all', 'claude', 'codex'],
+        choices=['all', 'claude', 'codex', 'pi'],
         default='all',
         help='Choose which conversation store to inspect',
     )
@@ -125,6 +126,14 @@ def derive_project_slug(project_path: str) -> str:
     if not value:
         raise ValueError('--project cannot be empty')
     return value.replace('/', '-')
+
+
+def derive_pi_project_slug(project_path: Path) -> str:
+    value = str(project_path).strip()
+    if not value:
+        raise ValueError('--project cannot be empty')
+    slug = value.strip('/').replace('/', '-')
+    return f'--{slug}--'
 
 
 def resolve_project_dir(args: argparse.Namespace) -> Path:
@@ -166,6 +175,35 @@ def load_recent_codex_session_paths(project_path: Path, *, days: int) -> list[Pa
         session_project = read_codex_session_project_hint(path)
         if session_project == str(project_path):
             paths.append(path)
+    paths.sort(key=lambda item: item.stat().st_mtime, reverse=True)
+    return paths
+
+
+def load_recent_pi_session_paths(project_path: Path, *, days: int) -> list[Path]:
+    if not PI_SESSIONS_DIR.exists():
+        raise FileNotFoundError(f'Pi sessions directory not found: {PI_SESSIONS_DIR}')
+    cutoff = datetime.now(UTC) - timedelta(days=days)
+    project_slug = derive_pi_project_slug(project_path)
+    candidate_dirs = [PI_SESSIONS_DIR / project_slug]
+    paths: list[Path] = []
+
+    for session_dir in candidate_dirs:
+        if not session_dir.exists():
+            continue
+        for path in session_dir.glob('*.jsonl'):
+            modified = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
+            if modified >= cutoff:
+                paths.append(path)
+
+    if not paths:
+        for path in PI_SESSIONS_DIR.rglob('*.jsonl'):
+            modified = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
+            if modified < cutoff:
+                continue
+            session_project = read_pi_session_project_hint(path)
+            if session_project == str(project_path):
+                paths.append(path)
+
     paths.sort(key=lambda item: item.stat().st_mtime, reverse=True)
     return paths
 
@@ -221,6 +259,20 @@ def extract_codex_message_text(content: Any) -> str:
     return normalize_text('\n'.join(parts))
 
 
+def extract_pi_message_text(content: Any) -> str:
+    if isinstance(content, str):
+        return normalize_text(content)
+    if not isinstance(content, list):
+        return ''
+    parts: list[str] = []
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        if block.get('type') == 'text' and isinstance(block.get('text'), str):
+            parts.append(block['text'])
+    return normalize_text('\n'.join(parts))
+
+
 def extract_codex_turn(record: dict[str, Any]) -> Turn | None:
     if record.get('type') != 'response_item':
         return None
@@ -238,6 +290,21 @@ def extract_codex_turn(record: dict[str, Any]) -> Turn | None:
     if role == 'user' and any(pattern in text for pattern in CODEX_NOISE_PATTERNS):
         return None
     return Turn(role=role, text=text, timestamp=record.get('timestamp'))
+
+
+def extract_pi_turn(record: dict[str, Any]) -> Turn | None:
+    if record.get('type') != 'message':
+        return None
+    message = record.get('message')
+    if not isinstance(message, dict):
+        return None
+    role = message.get('role')
+    if role not in {'user', 'assistant'}:
+        return None
+    text = extract_pi_message_text(message.get('content'))
+    if not text:
+        return None
+    return Turn(role=role, text=text, timestamp=record.get('timestamp') or message.get('timestamp'))
 
 
 def read_codex_session_project_hint(path: Path) -> str | None:
@@ -259,6 +326,26 @@ def read_codex_session_project_hint(path: Path) -> str | None:
         cwd = payload.get('cwd')
         if isinstance(cwd, str):
             return cwd
+    return None
+
+
+def read_pi_session_project_hint(path: Path) -> str | None:
+    try:
+        with path.open(encoding='utf-8') as handle:
+            first = handle.readline().strip()
+    except OSError:
+        return None
+    if not first:
+        return None
+    try:
+        record = json.loads(first)
+    except json.JSONDecodeError:
+        return None
+    if record.get('type') != 'session':
+        return None
+    cwd = record.get('cwd')
+    if isinstance(cwd, str):
+        return cwd
     return None
 
 
@@ -344,6 +431,38 @@ def summarize_codex_session(path: Path, keywords: list[str]) -> SessionSummary |
     )
 
 
+def summarize_pi_session(path: Path, keywords: list[str]) -> SessionSummary | None:
+    turns: list[Turn] = []
+    started_at: str | None = None
+    project_hint = read_pi_session_project_hint(path)
+    with path.open(encoding='utf-8') as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if started_at is None:
+                started_at = record.get('timestamp')
+            turn = extract_pi_turn(record)
+            if turn is not None:
+                turns.append(turn)
+    if not turns:
+        return None
+    modified_at = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
+    return SessionSummary(
+        source='pi',
+        path=path,
+        modified_at=modified_at,
+        started_at=started_at,
+        turns=turns,
+        score=score_session(turns, keywords),
+        project_hint=project_hint,
+    )
+
+
 def to_markdown(project_dir: Path, sessions: list[SessionSummary]) -> str:
     lines = [
         '# Discussion Candidates',
@@ -404,17 +523,40 @@ def main() -> int:
     sessions = []
     if args.source in {'all', 'claude'}:
         project_dir = resolve_project_dir(args)
-        for path in load_recent_claude_session_paths(
-            project_dir,
-            days=args.days,
-            max_sessions=args.max_sessions,
-        ):
+        try:
+            claude_paths = load_recent_claude_session_paths(
+                project_dir,
+                days=args.days,
+                max_sessions=args.max_sessions,
+            )
+        except FileNotFoundError:
+            if args.source == 'claude':
+                raise
+            claude_paths = []
+        for path in claude_paths:
             summary = summarize_session(path, args.keyword)
             if summary is not None:
                 sessions.append(summary)
     if args.source in {'all', 'codex'}:
-        for path in load_recent_codex_session_paths(project_path, days=args.days):
+        try:
+            codex_paths = load_recent_codex_session_paths(project_path, days=args.days)
+        except FileNotFoundError:
+            if args.source == 'codex':
+                raise
+            codex_paths = []
+        for path in codex_paths:
             summary = summarize_codex_session(path, args.keyword)
+            if summary is not None:
+                sessions.append(summary)
+    if args.source in {'all', 'pi'}:
+        try:
+            pi_paths = load_recent_pi_session_paths(project_path, days=args.days)
+        except FileNotFoundError:
+            if args.source == 'pi':
+                raise
+            pi_paths = []
+        for path in pi_paths:
+            summary = summarize_pi_session(path, args.keyword)
             if summary is not None:
                 sessions.append(summary)
     sessions.sort(key=lambda item: (item.score, item.modified_at), reverse=True)
