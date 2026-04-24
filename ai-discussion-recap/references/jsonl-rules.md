@@ -10,8 +10,15 @@ Codex rollout histories are typically stored under:
 
 - `~/.codex/sessions/YYYY/MM/**/rollout-*.jsonl`
 
-A project slug usually matches the absolute project path with `/` replaced by `-`.
+Pi histories are typically stored under:
+
+- `~/.pi/agent/sessions/<project-slug>/*.jsonl`
+
+A Claude project slug usually matches the absolute project path with `/` replaced by `-`.
 Example: `/home/yu/projects/HaL` -> `-home-yu-projects-HaL`
+
+A Pi project slug usually strips leading/trailing `/`, replaces `/` with `-`, then wraps the result in `--`.
+Example: `/home/yu/projects/HaL` -> `--home-yu-projects-HaL--`
 
 ## High-signal records
 
@@ -21,6 +28,7 @@ Prioritize these records when reconstructing a discussion:
 - top-level `type: "assistant"`
 - event records with `type: "user_message"` and a useful `payload.content`
 - in Codex rollout files, `response_item` records whose payload is `message` and role is `user` or `assistant`
+- in Pi session files, `type: "message"` records whose nested `message.role` is `user` or `assistant`, with text read from `content` blocks of `type: "text"`
 
 ## What to ignore by default
 
@@ -34,6 +42,9 @@ Ignore these unless the user explicitly wants execution details:
 - `type: "system"` command bookkeeping
 - Codex `response_item` records with role `developer`
 - Codex `function_call`, `function_call_output`, `custom_tool_call`, `custom_tool_call_output`, and `reasoning` records unless the user explicitly wants execution details
+- Pi runtime records such as `session`, `model_change`, `thinking_level_change`, and `custom`
+- Pi nested `message.role: "toolResult"`
+- Pi nested content blocks such as `thinking` and `toolCall` unless the user explicitly wants execution details
 
 ## Session ranking heuristics
 
@@ -49,6 +60,7 @@ Downgrade sessions dominated by:
 - pure implementation logs
 - repeated retries after a tooling problem
 - Codex sessions whose visible content is mostly injected setup rather than actual user collaboration
+- Pi sessions whose visible content is mostly provider/runtime switching, ping/pong checks, or tool output
 
 ## Summarization guidance
 
