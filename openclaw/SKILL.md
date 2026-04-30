@@ -1,6 +1,6 @@
 ---
 name: openclaw
-description: "Query OpenClaw documentation, implementation, and configuration. Use when asked about OpenClaw agent runtime, gateway, system prompt, tools, context engine, security, sandboxing, multi-agent routing, channels, plugins, skills, ACP, thinking/verbose/reasoning directives, or troubleshooting OpenClaw deployments. Triggers include: openclaw, agent-core, pi-agent-core, gateway config, context engine, system prompt assembly, tool policy, sandboxing, compaction."
+description: "Query OpenClaw documentation, implementation, and configuration. Use when asked about OpenClaw agent runtime, gateway, system prompt, tools, context engine, security, sandboxing, multi-agent routing, channels, plugins, skills, ACP, thinking/verbose/reasoning directives, deployment state, or troubleshooting OpenClaw deployments. Triggers include: openclaw, agent-core, pi-agent-core, gateway config, context engine, system prompt assembly, tool policy, sandboxing, compaction, deployment state, current-state."
 ---
 
 # OpenClaw
