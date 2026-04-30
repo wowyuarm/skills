@@ -19,6 +19,7 @@ Current top-level skills:
 - `ai-discussion-recap/`
 - `deepwiki/`
 - `openclaw/`
+- `openclaw-weixin-maintenance/`
 - `proxy-vps-ops/`
 - `prune/`
 - `repo-init/`
