@@ -19,15 +19,26 @@ EOF
 call_tool() {
     local tool_name="$1"
     local arguments="$2"
+    local data
+    local exit_code
+    local -a curl_args=(-X POST "$ENDPOINT" -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"${tool_name}\",\"arguments\":${arguments}}}")
 
-    curl -sf -X POST "$ENDPOINT" \
-        -H "Content-Type: application/json" \
-        -H "Accept: application/json, text/event-stream" \
-        -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"${tool_name}\",\"arguments\":${arguments}}}" \
-    | sed -n 's/^data: //p' \
-    | python3 -c "
+    # Try with env proxy first, fallback to direct if it fails
+    for try_direct in 0 1; do
+        if [[ $try_direct -eq 1 ]]; then
+            data=$(curl -sS --noproxy '*' "${curl_args[@]}" 2>/dev/null) && exit_code=0 || exit_code=$?
+        else
+            data=$(curl -sS "${curl_args[@]}" 2>/dev/null) && exit_code=0 || exit_code=$?
+        fi
+
+        if [[ $exit_code -eq 0 && -n "$data" ]]; then
+            echo "$data" | sed -n 's/^data: //p' | python3 -c "
 import sys, json
-data = json.load(sys.stdin)
+try:
+    data = json.load(sys.stdin)
+except json.JSONDecodeError:
+    print('Error: invalid JSON response from DeepWiki', file=sys.stderr)
+    sys.exit(1)
 if 'error' in data:
     print(f\"Error: {data['error'].get('message', 'unknown')}\", file=sys.stderr)
     sys.exit(1)
@@ -35,6 +46,12 @@ for item in data.get('result', {}).get('content', []):
     if item.get('type') == 'text':
         print(item['text'])
 "
+            return $?
+        fi
+    done
+
+    echo "Error: DeepWiki unreachable (tried proxy and direct)" >&2
+    exit 1
 }
 
 [[ $# -lt 2 ]] && usage
