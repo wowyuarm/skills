@@ -18,6 +18,7 @@
 Current top-level skills:
 - `ai-discussion-recap/`
 - `deepwiki/`
+- `openclaw/`
 - `proxy-vps-ops/`
 - `prune/`
 - `repo-init/`
@@ -66,6 +67,14 @@ If you add, remove, rename, or install a skill in this repository, update the sk
 - Prefer small, targeted edits over broad rewrites.
 - Preserve existing skill paths unless the user explicitly wants a reorganization.
 - When adding new instructions, keep them durable and reusable rather than session-specific.
+
+## Git Commit Discipline
+
+- Commit every modification, even small ones. Do not leave uncommitted changes in the working tree.
+- Commit each batch of changes separately, grouped by topic and time.
+- Use `GIT_AUTHOR_DATE` and `GIT_COMMITTER_DATE` to match the actual file modification timestamps (from `stat`), so the commit history reflects when the work happened, not when you happened to run `git commit`.
+- Use meaningful commit messages: `<skill-name>: <what changed>`. Keep messages short but specific enough to understand without reading the diff.
+- After adding, removing, renaming, or installing a skill in this repository, update the skill indexes in both `README.md` and `AGENTS.md` in the same commit.
 
 ## Extensibility Hooks
 
