@@ -9,6 +9,7 @@ See `AGENTS.md` for repository maintenance guidance.
 - [`ai-discussion-recap`](ai-discussion-recap/SKILL.md) — summarize useful recent discussion from local Claude Code, Codex, and Pi session logs
 - [`deepwiki`](deepwiki/SKILL.md) — query DeepWiki documentation for public GitHub repositories over HTTP
 - [`openclaw`](openclaw/SKILL.md) — answer OpenClaw questions using local docs, DeepWiki, and official site
+- [`openclaw-weixin-maintenance`](openclaw-weixin-maintenance/SKILL.md) — maintain Yu's self-use OpenClaw Weixin plugin patch layer
 - [`proxy-vps-ops`](proxy-vps-ops/SKILL.md) — manage the lifecycle of a self-hosted VPS used as a personal proxy node
 - [`prune`](prune/SKILL.md) — repository inspection guidance for code-reading tasks
 - [`repo-init`](repo-init/SKILL.md) — create `AGENTS.md` for a repository from its real files and conventions
