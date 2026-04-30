@@ -7,6 +7,40 @@ description: "Query OpenClaw documentation, implementation, and configuration. U
 
 Answer OpenClaw questions fast using three primary sources, plus fallbacks.
 
+## Mandatory state protocol
+
+Always start by checking for [`references/current-state.local.md`](references/current-state.local.md).
+
+If it exists:
+- read it first
+- treat it as the active engagement ledger
+
+If it does not exist:
+- read [`references/current-state.template.md`](references/current-state.template.md)
+- create `references/current-state.local.md` from that template
+- fill in the known facts for the current deployment before continuing
+
+Treat the local state file as the active engagement ledger:
+- Use it to learn what is already known, what was already changed, and what still needs verification.
+- Do not re-read config or re-query deployment facts that are already in the state file and still credible.
+- If the question is clearly about a different channel, agent, or aspect of the deployment, update the file for the new focus before continuing.
+- After every meaningful milestone (verified config, resolved issue, deployed change), update the file with verified facts, recent changes, open questions, and next actions.
+- Never invent facts in the state file. Mark uncertain items explicitly as reported, unverified, stale, or guessed.
+
+`current-state.template.md` is stable guidance and should stay shareable. `current-state.local.md` is runtime state and is expected to change during normal use.
+
+## Operating model
+
+Work in this order:
+1. Read the current state file.
+2. Determine whether the question is about general OpenClaw knowledge or the user's specific deployment.
+3. Load the relevant source (docs, DeepWiki, website) or inspect the deployment (config file, CLI).
+4. Make the smallest correct answer or change.
+5. Verify at the right layer.
+6. Update the state file.
+
+## Source priority
+
 ## Source priority
 
 | Priority | Source | For what |
