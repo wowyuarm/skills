@@ -177,11 +177,15 @@ openclaw config get
 
 ## 6. User config
 
+For Yu's current deployment, trust `references/current-state.local.md` first. As of 2026-05-01 the live VPS config is:
+
 ```bash
-~/.openclaw/openclaw.json5
+/home/openclaw/.openclaw/openclaw.json
 ```
 
-Read this when the question is about the user's specific deployment, channel settings, agent profiles, or model allowlists.
+The local WSL backup uses `~/.openclaw/openclaw.json`. Do not assume JSON5 for this deployment.
+
+Read the live VPS config when the question is about channel settings, agent profiles, tool policy, plugin state, or model allowlists.
 
 ## Common query patterns
 
