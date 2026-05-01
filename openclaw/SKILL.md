@@ -200,5 +200,5 @@ Read the live VPS config when the question is about channel settings, agent prof
 | What tool policies can I set per channel? | Local docs → grep gateway/ for "tools.deny", "tools.profile" |
 | How does sandboxing work? | Local docs → gateway/sandboxing.md |
 | What's ACP and how to set it up? | Local docs concepts/ (search "acp") + pi-dev.md |
-| User's current deployment state | Read ~/.openclaw/openclaw.json5 + openclaw doctor |
+| User's current deployment state | Read `references/current-state.local.md`, then live VPS `/home/openclaw/.openclaw/openclaw.json` / CLI as needed |
 | Plugin/Skill development | Local docs plugins/ + pi-dev.md |
