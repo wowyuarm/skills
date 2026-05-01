@@ -1,6 +1,6 @@
 ---
 name: openclaw
-description: "Query OpenClaw documentation, implementation, and configuration. Use when asked about OpenClaw agent runtime, gateway, system prompt, tools, context engine, security, sandboxing, multi-agent routing, channels, plugins, skills, ACP, thinking/verbose/reasoning directives, deployment state, or troubleshooting OpenClaw deployments. Triggers include: openclaw, agent-core, pi-agent-core, gateway config, context engine, system prompt assembly, tool policy, sandboxing, compaction, deployment state, current-state."
+description: "Use whenever the user mentions OpenClaw or asks about Xi/OpenClaw operations. Query OpenClaw documentation, implementation, configuration, and Yu's VPS deployment. Covers agent runtime, gateway, system prompt, tools, context engine, security, sandboxing, multi-agent routing, channels, plugins, skills, ACP, thinking/verbose/reasoning directives, deployment state, file delivery, VPS operations, and troubleshooting. Triggers include: openclaw, Xi/曦 runtime, agent-core, pi-agent-core, gateway config, context engine, system prompt assembly, tool policy, sandboxing, compaction, deployment state, current-state."
 ---
 
 # OpenClaw
@@ -28,6 +28,22 @@ Treat the local state file as the active engagement ledger:
 - Never invent facts in the state file. Mark uncertain items explicitly as reported, unverified, stale, or guessed.
 
 `current-state.template.md` is stable guidance and should stay shareable. `current-state.local.md` is runtime state and is expected to change during normal use.
+
+## VPS source-of-truth protocol
+
+Yu's live OpenClaw runtime is on the VPS. Treat `/home/openclaw/.openclaw` on `openclaw@100.120.85.70` as canonical for runtime docs, memory, config, plugin state, and sessions.
+
+Local `~/.openclaw` is a backup/maintenance working copy and may be stale. For any change to OpenClaw runtime files:
+
+1. Read this skill and `references/current-state.local.md` first.
+2. Inspect the current VPS file before editing or syncing.
+3. Make targeted patches against the VPS file when possible.
+4. If editing locally first, fetch/diff the VPS file before upload and merge VPS-only content. Never blindly `scp` a whole local file over VPS.
+5. Create a timestamped backup on VPS before replacing important files.
+6. After writing, verify with `diff`, `grep`, config validation, memory search/index, service health, or tool smoke test as appropriate.
+7. Update `current-state.local.md` with the verified result and any new operational rule.
+
+If local and VPS differ, preserve VPS-only content unless the user explicitly asks to revert it.
 
 ## Operating model
 
