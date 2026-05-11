@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extract high-signal Claude Code, Codex, or Pi discussion turns from local session logs."""
+"""Extract high-signal discussion turns from Claude Code, Codex, Pi, or Windsurf (Devin Local) session logs."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from typing import Any
 CLAUDE_PROJECTS_DIR = Path.home() / '.claude' / 'projects'
 CODEX_SESSIONS_DIR = Path.home() / '.codex' / 'sessions'
 PI_SESSIONS_DIR = Path.home() / '.pi' / 'agent' / 'sessions'
+DEVIN_SESSIONS_DB = Path.home() / '.local' / 'share' / 'devin' / 'cli' / 'sessions.db'
 DEFAULT_DAYS = 14
 DEFAULT_MAX_SESSIONS = 8
 PREVIEW_LIMIT = 280
@@ -92,7 +93,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--project-slug', help='Explicit Claude project slug under ~/.claude/projects/')
     parser.add_argument(
         '--source',
-        choices=['all', 'claude', 'codex', 'pi'],
+        choices=['all', 'claude', 'codex', 'pi', 'windsurf'],
         default='all',
         help='Choose which conversation store to inspect',
     )
@@ -177,6 +178,135 @@ def load_recent_codex_session_paths(project_path: Path, *, days: int) -> list[Pa
             paths.append(path)
     paths.sort(key=lambda item: item.stat().st_mtime, reverse=True)
     return paths
+
+
+def _normalize_devin_path(raw: str) -> str:
+    """Devin stores paths with backslash separators regardless of platform."""
+    return raw.replace('\\', '/')
+
+
+@dataclass(slots=True)
+class DevinSession:
+    id: str
+    working_directory: str
+    model: str
+    title: str | None
+    created_at: int
+    last_activity_at: int
+    hidden: int
+
+
+def load_recent_devin_sessions(project_path: Path, *, days: int) -> list[DevinSession]:
+    """Query Devin Local SQLite DB for sessions matching the given workspace."""
+    if not DEVIN_SESSIONS_DB.exists():
+        raise FileNotFoundError(f'Devin sessions DB not found: {DEVIN_SESSIONS_DB}')
+    import sqlite3
+
+    cutoff_ts = (datetime.now(UTC) - timedelta(days=days)).timestamp()
+    project_str = str(project_path)
+    # Devin uses backslash paths on all platforms; match both forms
+    project_variants = (project_str, project_str.replace('/', '\\'))
+
+    conn = sqlite3.connect(str(DEVIN_SESSIONS_DB))
+    try:
+        cursor = conn.execute(
+            'SELECT id, working_directory, model, title, created_at, last_activity_at, hidden '
+            'FROM sessions WHERE last_activity_at >= ? '
+            'ORDER BY last_activity_at DESC',
+            (int(cutoff_ts),),
+        )
+        sessions: list[DevinSession] = []
+        for row in cursor.fetchall():
+            sid, wd, model, title, created, last_activity, hidden = row
+            normalized_wd = _normalize_devin_path(wd)
+            for variant in project_variants:
+                if normalized_wd == variant or normalized_wd.startswith(variant + '/'):
+                    sessions.append(DevinSession(
+                        id=sid, working_directory=wd, model=model,
+                        title=title, created_at=created, last_activity_at=last_activity, hidden=hidden,
+                    ))
+                    break
+    finally:
+        conn.close()
+    return sessions
+
+
+def extract_devin_chat_text(msg: dict[str, Any]) -> str:
+    """Extract conversational text from a Devin message node JSON."""
+    role = msg.get('role', '')
+    if role not in ('user', 'assistant'):
+        return ''
+    content = msg.get('content', '')
+    if isinstance(content, str):
+        text = content.strip()
+    elif isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, dict) and block.get('type') == 'text' and isinstance(block.get('text'), str):
+                parts.append(block['text'])
+        text = ' '.join(parts).strip()
+    else:
+        text = ''
+    # Skip tool-call-only assistant turns that have no actual text
+    if role == 'assistant' and not text and msg.get('tool_calls'):
+        return ''
+    return normalize_text(text)
+
+
+def summarize_devin_session(session: DevinSession, keywords: list[str]) -> SessionSummary | None:
+    """Extract turns from a Devin Local session's message_nodes."""
+    import sqlite3
+
+    turns: list[Turn] = []
+    started_at: str | None = None
+    seen_message_ids: set[str] = set()
+
+    conn = sqlite3.connect(str(DEVIN_SESSIONS_DB))
+    try:
+        cursor = conn.execute(
+            'SELECT chat_message, created_at FROM message_nodes '
+            'WHERE session_id = ? ORDER BY node_id',
+            (session.id,),
+        )
+        for row in cursor.fetchall():
+            raw_json, created_ts = row
+            try:
+                msg = json.loads(raw_json)
+            except json.JSONDecodeError:
+                continue
+            # Deduplicate by message_id — the tree duplicates messages
+            # across parent-chain nodes; take the first occurrence.
+            mid = msg.get('message_id')
+            if mid:
+                if mid in seen_message_ids:
+                    continue
+                seen_message_ids.add(mid)
+            role = msg.get('role', '')
+            if role not in ('user', 'assistant'):
+                continue
+            text = extract_devin_chat_text(msg)
+            if not text:
+                continue
+            timestamp = datetime.fromtimestamp(created_ts, tz=UTC).isoformat() if created_ts else None
+            if started_at is None:
+                started_at = timestamp
+            turns.append(Turn(role=role, text=text, timestamp=timestamp))
+    finally:
+        conn.close()
+
+    if not turns:
+        return None
+
+    modified_at = datetime.fromtimestamp(session.last_activity_at, tz=UTC)
+    return SessionSummary(
+        source='windsurf',
+        path=Path(session.id),  # use session ID as pseudo-path
+        modified_at=modified_at,
+        started_at=started_at,
+        turns=turns,
+        score=score_session(turns, keywords),
+        project_hint=_normalize_devin_path(session.working_directory),
+    )
 
 
 def load_recent_pi_session_paths(project_path: Path, *, days: int) -> list[Path]:
@@ -472,7 +602,11 @@ def to_markdown(project_dir: Path, sessions: list[SessionSummary]) -> str:
         '',
     ]
     for index, session in enumerate(sessions, start=1):
-        lines.append(f'## {index}. {session.path.name}')
+        if session.source == 'windsurf':
+            label = f'{session.path.name} (Devin Local)'
+        else:
+            label = session.path.name
+        lines.append(f'## {index}. {label}')
         lines.append(f'- Source: {session.source}')
         lines.append(f'- Modified: {session.modified_at.isoformat()}')
         if session.started_at:
@@ -557,6 +691,17 @@ def main() -> int:
             pi_paths = []
         for path in pi_paths:
             summary = summarize_pi_session(path, args.keyword)
+            if summary is not None:
+                sessions.append(summary)
+    if args.source in {'all', 'windsurf'}:
+        try:
+            devin_sessions = load_recent_devin_sessions(project_path, days=args.days)
+        except FileNotFoundError:
+            if args.source == 'windsurf':
+                raise
+            devin_sessions = []
+        for ds in devin_sessions:
+            summary = summarize_devin_session(ds, args.keyword)
             if summary is not None:
                 sessions.append(summary)
     sessions.sort(key=lambda item: (item.score, item.modified_at), reverse=True)

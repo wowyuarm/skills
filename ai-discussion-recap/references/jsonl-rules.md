@@ -1,6 +1,6 @@
 # AI Session Log Rules
 
-## Relevant directories
+## Relevant directories / data stores
 
 Claude Code project histories are typically stored under:
 
@@ -13,6 +13,20 @@ Codex rollout histories are typically stored under:
 Pi histories are typically stored under:
 
 - `~/.pi/agent/sessions/<project-slug>/*.jsonl`
+
+Windsurf (Devin Local) conversation history is stored in an SQLite database:
+
+- `~/.local/share/devin/cli/sessions.db`
+
+  - `sessions` table: `id`, `working_directory` (backslash-separated on all platforms),
+    `model`, `title`, `created_at`, `last_activity_at` (Unix timestamps)
+  - `message_nodes` table: `session_id`, `node_id`, `parent_node_id`,
+    `chat_message` (JSON with `role`, `content`, `message_id`,
+    optional `tool_calls` and `thinking`), `created_at` (Unix timestamp)
+  - The `message_nodes` table is a tree: the same `message_id` can appear at
+    multiple `node_id` values. Deduplicate by `message_id` on first encounter.
+  - Skip `role: system` and `role: tool` records. Extract only `user`
+    and `assistant` with non-empty `content` text.
 
 A Claude project slug usually matches the absolute project path with `/` replaced by `-`.
 Example: `/home/yu/projects/HaL` -> `-home-yu-projects-HaL`
@@ -29,6 +43,7 @@ Prioritize these records when reconstructing a discussion:
 - event records with `type: "user_message"` and a useful `payload.content`
 - in Codex rollout files, `response_item` records whose payload is `message` and role is `user` or `assistant`
 - in Pi session files, `type: "message"` records whose nested `message.role` is `user` or `assistant`, with text read from `content` blocks of `type: "text"`
+- in Windsurf (Devin Local) SQLite DB, `message_nodes` rows whose `chat_message` JSON has `role: "user"` or `role: "assistant"` with non-empty `content` string
 
 ## What to ignore by default
 

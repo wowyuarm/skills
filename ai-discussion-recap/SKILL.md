@@ -50,7 +50,7 @@ python3 ~/.codex/skills/ai-discussion-recap/scripts/extract_ai_discussions.py \
 ```
 
 If you need structured output for further filtering or your own analysis, add `--json`.
-Use `--source claude`, `--source codex`, or `--source pi` when you only want one store.
+Use `--source claude`, `--source codex`, `--source pi`, or `--source windsurf` when you only want one store.
 
 For very noisy sessions or pasted logs, prefer the extractor output first because it collapses long text and keeps the most useful edges of the conversation.
 
@@ -62,7 +62,7 @@ Treat these as high-signal and worth summarizing:
 - Assistant responses that contain explicit judgments, proposed structure, phased plans, constraints, or conclusions.
 - Sessions where the first user message is substantive rather than a tiny follow-up like `continue`, `ok`, or `run tests`.
 - Long pasted inputs only when they frame a design question, decision, or debugging direction.
-- Codex or Pi sessions whose `cwd` matches the current project and contain real `user` and `assistant` messages after injected setup or runtime records.
+- Codex or Pi sessions whose `cwd` matches the current project, or Windsurf (Devin Local) sessions whose `working_directory` matches, and contain real `user` and `assistant` messages after injected setup or runtime records.
 
 Treat these as low-signal unless the user explicitly asks for them:
 
