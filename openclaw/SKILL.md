@@ -187,6 +187,20 @@ The local WSL backup uses `~/.openclaw/openclaw.json`. Do not assume JSON5 for t
 
 Read the live VPS config when the question is about channel settings, agent profiles, tool policy, plugin state, or model allowlists.
 
+## Known 2026.5.x gotchas (as of 2026-05-07)
+
+- **config.env.vars proxy IS effective**: OpenClaw's internal undici proxy-fetch wrapper
+  reads HTTP_PROXY/HTTPS_PROXY from `config.env.vars` and applies them at the `fetch` layer.
+  Don't assume they're ignored — they override all outbound HTTP.
+- **Plugins need dist/**: Source-only TypeScript plugins won't load. Must pre-compile.
+- **Plugin registry**: Installing a plugin requires registration in `installs.json`.
+  `openclaw plugins install --force <path>`.
+- **ESM module state resets**: Module-level `let` variables set during `register()` may be
+  `null` during channel execution (`startAccount`). Store cross-lifecycle state on
+  `globalThis` as a fallback.
+
+See `references/current-state.local.md` for live deployment-specific lessons.
+
 ## Common query patterns
 
 | Question type | Go here first |
