@@ -33,6 +33,19 @@ Current important patch branches:
 - `yu/patch/gateway-methods`
 - `yu/patch/voice-ref-msg`
 - `yu/patch/log-dedupe`
+- `yu/patch/suppress-cron-tool-warnings`
+
+## OpenClaw 2026.5.x deploy-level patches (in `yu/current` dist/, not separate branches)
+
+These are not upstream PRs but compatibility workarounds. They're applied directly
+in `yu/current`'s source files and survive `tsc` rebuilds:
+
+- `src/runtime.ts`: store PluginRuntime on `globalThis.__weixinPluginRuntime` because
+  OpenClaw 2026.5.x re-initializes ESM module state between `register()` and channel
+  startup, resetting module-level `let` variables to `null`.
+- `src/api/api.ts`: removed manual `Content-Length` header from `buildHeaders()` because
+  OpenClaw's bundled undici 8.x rejects it with `UND_ERR_INVALID_ARG`.
+- `MAINTAINING.md` has full deploy gotchas.
 
 ## Mandatory workflow
 
