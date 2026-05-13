@@ -114,6 +114,18 @@ Remote script behavior:
 - Logical day boundary is 03:00 Asia/Shanghai.
 - Quiet hours: 01:00–07:00, Xi can explore but defaults not to message.
 - Context model: append-only `xi.jsonl` truth + rebuilt LLM context each turn.
+- Runtime recovery is ledger-based: user messages live in `sessions/<day>/queue.jsonl`, queue state in `queue-claims.jsonl`, Xi turn lifecycle in `state/turn-ledger.jsonl`, and `active-session.lock` is an atomic pid/boot/turn lock.
+- `active-turn.json` is a readable snapshot, not the source of truth. Recovery decisions should use queue claims + turn ledger + lock state.
+
+## Runtime outage / recovery triage
+
+When diagnosing Xi daemon, do this order:
+1. `systemctl status xi-daemon --no-pager -l` and recent `journalctl -u xi-daemon`.
+2. `sudo -u xi XI_HOME=/home/xi/.xi node /opt/xi/Xi/dist/cli.js status` and read the top lines first: `Active`, `Lock`, `Running turn`, `Recoverable turn`, `Queue`, `Last turn`, `Weixin`, `Git steward`.
+3. Inspect durable state only if needed: `state/turn-ledger.jsonl`, `sessions/<day>/queue.jsonl`, `sessions/<day>/queue-claims.jsonl`, `state/active-turn.json`, `state/git-steward-health.json`, `state/weixin/health.json`.
+4. Do not replay a queued item automatically if ledger/outbox shows outbound was already sent before crash; prefer explanation/manual review to duplicate delivery.
+5. An open `active-segment.json` is not itself a stuck turn. Segment closes only when no active lock and no unacked queue item remain.
+6. For runtime recovery changes, run `npm run typecheck`, `npm run build`, isolated status smoke, and `scripts/fault-injection/*.sh` before production restart.
 
 ## OpenClaw legacy rule
 
