@@ -20,7 +20,9 @@ Treat `current-state.local.md` as the active engagement ledger:
 - Reuse verified deployment facts instead of rediscovering them.
 - Update it after every meaningful milestone: deploy, service restart, VPS hardening, channel cutover, migration, incident, or design decision.
 - Never store secrets, tokens, API keys, Tailscale auth keys, or private key contents.
-- If local and VPS differ, inspect/diff before syncing. Never blindly overwrite production `~/.xi`.
+- If local and VPS differ, inspect/diff before syncing.
+- **Workspace source of truth:** production `~/.xi` on VPS, then GitHub `wowyuarm/xi-workspace-history`. Local `~/.xi` is a mirror / working copy, not the authority.
+- **Never push local `~/.xi` over VPS directly unless you have first proven local == latest GitHub/VPS and the change is intentional.**
 
 ## Source priority
 
@@ -31,7 +33,7 @@ Treat `current-state.local.md` as the active engagement ledger:
 | 3 | `/home/yu/projects/Xi/ARCHITECTURE.md` | Runtime design and memory pipeline |
 | 4 | `/home/yu/projects/Xi/README.md` | Commands and rewrite summary |
 | 5 | Code under `/home/yu/projects/Xi/src/` | Exact behavior |
-| 6 | `~/.xi/` | Local production workspace / history |
+| 6 | `~/.xi/` | Local mirror of Xi workspace; use only after checking against VPS/GitHub |
 | 7 | `~/.openclaw/` | Archived OpenClaw legacy context |
 
 ## Critical operating rule: isolated tests first
@@ -67,6 +69,17 @@ VPS:
 - Env file: `/etc/xi/xi.env`
 - Service: `xi-daemon.service`
 - Deploy script: `/usr/local/bin/deploy-xi`
+
+## Workspace sync rule
+
+For Xi workspace files (`~/.xi`):
+
+1. Treat **VPS `/home/xi/.xi`** as the live truth.
+2. Treat **GitHub `wowyuarm/xi-workspace-history`** as the canonical committed history.
+3. Before editing local `~/.xi`, first compare/fetch so local is not on a stale or diverged branch.
+4. If production workspace has meaningful dirty state, let VPS commit/push first, then sync local from GitHub/VPS.
+5. Do not rsync local `~/.xi` to VPS just because local changed. Prove the direction first.
+6. If you accidentally wrote local content onto VPS workspace, stop, back up both sides, restore VPS file from its own HEAD if needed, then re-sync local from VPS/GitHub.
 
 ## Deployment model
 
