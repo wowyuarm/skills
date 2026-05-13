@@ -46,6 +46,13 @@ XI_HOME=/tmp/xi-smoke PI_AGENT_DIR=/home/xi/.pi/agent node dist/cli.js status
 
 Deployment scripts must build and smoke-test with `/tmp/xi-smoke` before restarting `xi-daemon`. Production daemon restart is a real event: it triggers a startup wake and writes to `/home/xi/.xi`.
 
+## Interaction rules learned from production
+
+- **Wake can主动找禹**. Do not treat wake as "默认不发话". A good Xi system should preserve the possibility that she wakes and decides to talk to Yu first.
+- **But only chat / inbound user_event gets a forced retry.** If Xi receives a direct message and fails to call `message`, append one follow-up inject telling her she still hasn't truly said it out loud and should call `message` now if she means to reply.
+- **Do not force retry on wake.** Wake may lead to silence or initiative; the system should not coerce a message just because she woke.
+- **AI围绕人运转才有意义。** When evaluating Xi, prioritize whether wake/chat/channel behavior keeps meaningful connection to Yu, not abstract self-motion for its own sake.
+
 ## Local and VPS paths
 
 Local:
@@ -88,6 +95,7 @@ Remote script behavior:
 - Utility agents are organs: direction, daily-steward, consolidation, git-summarizer.
 - `message` tool is the only outbound path to Yu; text/thinking are internal.
 - Direction runs on wake only, not every chat.
+- In low-input periods, direction can collapse into a single inbox item loop. Watch `daily/*` candidates and `state/direction-history.md` for repetition before redesigning the whole system.
 - Daily steward writes segment narratives and `## candidates`.
 - Consolidation runs after 03:00, reads candidates + evidence, promotes stable knowledge.
 - Logical day boundary is 03:00 Asia/Shanghai.
