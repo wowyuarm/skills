@@ -9,3 +9,6 @@ __pycache__/
 
 # Skill runtime state
 **/references/current-state.local.md
+
+# Untracked skill
+xi/
