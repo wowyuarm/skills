@@ -12,7 +12,19 @@ description: >-
 # DeepWiki
 
 Query the [DeepWiki](https://deepwiki.com) API via JSON-RPC over HTTP.
-No MCP client needed — just `curl` and `python3`.
+No MCP client needed — just a single Python script with stdlib.
+
+## Architecture
+
+```
+scripts/
+├── deepwiki      # Python CLI (stdlib only: json, urllib)
+└── deepwiki.sh   # Bash wrapper → delegates to deepwiki
+```
+
+The heavy lifting (JSON-RPC construction, SSE parsing, proxy fallback, error handling)
+is all in `deepwiki`. The shell wrapper just resolves the script directory and `exec`s
+into Python — no inline JSON escaping, no sed/pipe chains.
 
 ## Commands
 
@@ -27,7 +39,7 @@ scripts/deepwiki.sh contents <owner/repo>
 scripts/deepwiki.sh ask <owner/repo> "question"
 ```
 
-Aliases: `s`, `c`, `a`.
+Aliases: `s` `c` `a`. `scripts/deepwiki` also works directly.
 
 ## When to Use
 
