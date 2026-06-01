@@ -43,14 +43,16 @@ Keep the final synthesis in the main agent. Use the subagent for discovery and t
 If the user is asking for "recent discussions", "what did we conclude recently", "what project principles were settled", or similar, start with:
 
 ```bash
-python3 ~/.codex/skills/ai-discussion-recap/scripts/extract_ai_discussions.py \
+python3 ai-discussion-recap/scripts/extract_ai_discussions.py \
   --project /home/yu/projects/HaL \
   --days 14 \
   --max-sessions 8
 ```
 
+Adjust the path to match where this repo lives. When installed via `npx skills add` the script lives under `~/.codex/skills/ai-discussion-recap/scripts/extract_ai_discussions.py` or the equivalent for the target harness.
+
 If you need structured output for further filtering or your own analysis, add `--json`.
-Use `--source claude`, `--source codex`, `--source pi`, or `--source windsurf` when you only want one store.
+Use `--source claude`, `--source codex`, or `--source pi` when you only want one store. Combine `--max-sessions` with `--per-source` to keep some diversity when one store would otherwise crowd out the others.
 
 For very noisy sessions or pasted logs, prefer the extractor output first because it collapses long text and keeps the most useful edges of the conversation.
 
@@ -62,7 +64,8 @@ Treat these as high-signal and worth summarizing:
 - Assistant responses that contain explicit judgments, proposed structure, phased plans, constraints, or conclusions.
 - Sessions where the first user message is substantive rather than a tiny follow-up like `continue`, `ok`, or `run tests`.
 - Long pasted inputs only when they frame a design question, decision, or debugging direction.
-- Codex or Pi sessions whose `cwd` matches the current project, or Windsurf (Devin Local) sessions whose `working_directory` matches, and contain real `user` and `assistant` messages after injected setup or runtime records.
+- Codex or Pi sessions whose `cwd` matches the current project and contain real `user` and `assistant` messages after injected setup or runtime records.
+- Claude Code sessions matched either by slug or by the first record's `cwd` field. When the slug does not exist or only contains subagent directories, the script falls back to a recursive scan and filters by cwd.
 
 Treat these as low-signal unless the user explicitly asks for them:
 
@@ -75,11 +78,11 @@ Treat these as low-signal unless the user explicitly asks for them:
 
 The script already filters aggressively, but if you inspect raw JSONL yourself, focus on:
 
-- `type == "user"` with real message text
+- `type == "user"` with real message text (skip records that start with `<local-command-caveat>`, `<local-command-stdout>`, `<system-reminder>`, or other Claude-injected prefixes)
 - `type == "assistant"` text blocks only
 - `type == "user_message"` or `payload.content` only when they contain real conversational text
-- in Codex rollout files, `response_item` entries whose payload is `message` and role is `user` or `assistant`
-- in Pi JSONL files, `type == "message"` records whose nested `message.role` is `user` or `assistant`, keeping only text blocks
+- in Codex rollout files, `response_item` entries whose payload is `message` and role is `user` or `assistant`, after dropping any block whose combined text matches the configured Codex noise patterns
+- in Pi JSONL files, `type == "message"` records whose nested `message.role` is `user` or `assistant`, keeping only text blocks. Consecutive identical turns are deduped.
 
 Ignore tool-use blocks, tool results, event noise, Codex injected `developer` setup messages, and Pi runtime records like `model_change`, `thinking_level_change`, `custom`, plus `thinking` and `toolCall` blocks unless they directly explain a decision.
 

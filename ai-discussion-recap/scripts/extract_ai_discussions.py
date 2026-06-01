@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Extract high-signal discussion turns from Claude Code, Codex, Pi, or Windsurf (Devin Local) session logs."""
+"""Extract high-signal discussion turns from Claude Code, Codex, and Pi session logs."""
 
 from __future__ import annotations
 
 import argparse
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -14,11 +14,13 @@ from typing import Any
 CLAUDE_PROJECTS_DIR = Path.home() / '.claude' / 'projects'
 CODEX_SESSIONS_DIR = Path.home() / '.codex' / 'sessions'
 PI_SESSIONS_DIR = Path.home() / '.pi' / 'agent' / 'sessions'
-DEVIN_SESSIONS_DB = Path.home() / '.local' / 'share' / 'devin' / 'cli' / 'sessions.db'
 DEFAULT_DAYS = 14
 DEFAULT_MAX_SESSIONS = 8
+DEFAULT_PER_SOURCE = 8
+FALLBACK_CANDIDATE_CAP = 200
 PREVIEW_LIMIT = 280
 EDGE_PREVIEW_HEAD_RATIO = 0.6
+DEDUPE_TEXT_PREFIX = 200
 LOW_SIGNAL_USER_MESSAGES = {
     'continue',
     'ok',
@@ -30,10 +32,21 @@ LOW_SIGNAL_USER_MESSAGES = {
     '继续',
     '好的',
 }
+CLAUDE_INJECTED_USER_PREFIXES = (
+    '<local-command-caveat>',
+    '<local-command-stdout>',
+    '<local-command-stderr>',
+    '<command-name>',
+    '<command-message>',
+    '<command-args>',
+    '<system-reminder>',
+)
 CODEX_NOISE_PATTERNS = (
     '# AGENTS.md instructions for ',
     '<environment_context>',
     '<turn_aborted>',
+    '## Reasoning',
+    'Let me think about',
 )
 KEYWORD_BONUS = {
     'principle',
@@ -75,9 +88,20 @@ class SessionSummary:
     turns: list[Turn]
     score: int
     project_hint: str | None = None
+    cwd: str | None = None
+    git_branch: str | None = None
+    model: str | None = None
+    keywords: tuple[str, ...] = field(default_factory=tuple)
 
     @property
     def preview(self) -> str:
+        keywords_lower = tuple(k.lower() for k in self.keywords)
+        if keywords_lower:
+            for turn in self.turns:
+                if turn.role == 'user' and turn.text:
+                    text_lower = turn.text.lower()
+                    if any(k in text_lower for k in keywords_lower):
+                        return shorten(turn.text, PREVIEW_LIMIT)
         for turn in self.turns:
             if turn.role == 'user' and turn.text:
                 return shorten(turn.text, PREVIEW_LIMIT)
@@ -93,12 +117,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--project-slug', help='Explicit Claude project slug under ~/.claude/projects/')
     parser.add_argument(
         '--source',
-        choices=['all', 'claude', 'codex', 'pi', 'windsurf'],
+        choices=['all', 'claude', 'codex', 'pi'],
         default='all',
         help='Choose which conversation store to inspect',
     )
     parser.add_argument('--days', type=int, default=DEFAULT_DAYS)
     parser.add_argument('--max-sessions', type=int, default=DEFAULT_MAX_SESSIONS)
+    parser.add_argument('--per-source', type=int, default=DEFAULT_PER_SOURCE,
+                        help='Maximum sessions taken from each source before global ranking')
     parser.add_argument('--keyword', action='append', default=[])
     parser.add_argument('--json', action='store_true', help='Emit JSON instead of markdown')
     return parser.parse_args()
@@ -151,17 +177,60 @@ def resolve_project_path(args: argparse.Namespace) -> Path:
     return Path.cwd().resolve()
 
 
-def load_recent_claude_session_paths(project_dir: Path, *, days: int, max_sessions: int) -> list[Path]:
-    if not project_dir.exists():
-        raise FileNotFoundError(f'Claude project directory not found: {project_dir}')
+def load_recent_claude_session_paths(project_dir: Path, project_path: Path, *,
+                                    days: int, max_sessions: int) -> list[Path]:
+    if not CLAUDE_PROJECTS_DIR.exists():
+        raise FileNotFoundError(f'Claude projects directory not found: {CLAUDE_PROJECTS_DIR}')
     cutoff = datetime.now(UTC) - timedelta(days=days)
-    paths: list[Path] = []
-    for path in project_dir.glob('*.jsonl'):
-        modified = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
-        if modified >= cutoff:
-            paths.append(path)
-    paths.sort(key=lambda item: item.stat().st_mtime, reverse=True)
-    return paths[:max_sessions]
+    target = str(project_path)
+    seen: set[Path] = set()
+    candidates: list[Path] = []
+
+    if project_dir.exists():
+        for path in project_dir.rglob('*.jsonl'):
+            if path in seen:
+                continue
+            seen.add(path)
+            modified = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
+            if modified < cutoff:
+                continue
+            candidates.append(path)
+
+    if len(candidates) < max_sessions and project_path:
+        for path in CLAUDE_PROJECTS_DIR.rglob('*.jsonl'):
+            if path in seen:
+                continue
+            modified = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
+            if modified < cutoff:
+                continue
+            if not _claude_session_cwd_matches(path, target):
+                continue
+            seen.add(path)
+            candidates.append(path)
+            if len(candidates) >= FALLBACK_CANDIDATE_CAP:
+                break
+
+    candidates.sort(key=lambda item: item.stat().st_mtime, reverse=True)
+    return candidates[:max_sessions]
+
+
+def _claude_session_cwd_matches(path: Path, target: str) -> bool:
+    try:
+        with path.open(encoding='utf-8') as handle:
+            for _ in range(8):
+                line = handle.readline()
+                if not line:
+                    break
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                cwd = record.get('cwd')
+                if isinstance(cwd, str) and cwd:
+                    return cwd == target or cwd.startswith(target + '/')
+    except OSError:
+        return False
+    return False
 
 
 def load_recent_codex_session_paths(project_path: Path, *, days: int) -> list[Path]:
@@ -178,135 +247,6 @@ def load_recent_codex_session_paths(project_path: Path, *, days: int) -> list[Pa
             paths.append(path)
     paths.sort(key=lambda item: item.stat().st_mtime, reverse=True)
     return paths
-
-
-def _normalize_devin_path(raw: str) -> str:
-    """Devin stores paths with backslash separators regardless of platform."""
-    return raw.replace('\\', '/')
-
-
-@dataclass(slots=True)
-class DevinSession:
-    id: str
-    working_directory: str
-    model: str
-    title: str | None
-    created_at: int
-    last_activity_at: int
-    hidden: int
-
-
-def load_recent_devin_sessions(project_path: Path, *, days: int) -> list[DevinSession]:
-    """Query Devin Local SQLite DB for sessions matching the given workspace."""
-    if not DEVIN_SESSIONS_DB.exists():
-        raise FileNotFoundError(f'Devin sessions DB not found: {DEVIN_SESSIONS_DB}')
-    import sqlite3
-
-    cutoff_ts = (datetime.now(UTC) - timedelta(days=days)).timestamp()
-    project_str = str(project_path)
-    # Devin uses backslash paths on all platforms; match both forms
-    project_variants = (project_str, project_str.replace('/', '\\'))
-
-    conn = sqlite3.connect(str(DEVIN_SESSIONS_DB))
-    try:
-        cursor = conn.execute(
-            'SELECT id, working_directory, model, title, created_at, last_activity_at, hidden '
-            'FROM sessions WHERE last_activity_at >= ? '
-            'ORDER BY last_activity_at DESC',
-            (int(cutoff_ts),),
-        )
-        sessions: list[DevinSession] = []
-        for row in cursor.fetchall():
-            sid, wd, model, title, created, last_activity, hidden = row
-            normalized_wd = _normalize_devin_path(wd)
-            for variant in project_variants:
-                if normalized_wd == variant or normalized_wd.startswith(variant + '/'):
-                    sessions.append(DevinSession(
-                        id=sid, working_directory=wd, model=model,
-                        title=title, created_at=created, last_activity_at=last_activity, hidden=hidden,
-                    ))
-                    break
-    finally:
-        conn.close()
-    return sessions
-
-
-def extract_devin_chat_text(msg: dict[str, Any]) -> str:
-    """Extract conversational text from a Devin message node JSON."""
-    role = msg.get('role', '')
-    if role not in ('user', 'assistant'):
-        return ''
-    content = msg.get('content', '')
-    if isinstance(content, str):
-        text = content.strip()
-    elif isinstance(content, list):
-        parts: list[str] = []
-        for block in content:
-            if isinstance(block, dict) and block.get('type') == 'text' and isinstance(block.get('text'), str):
-                parts.append(block['text'])
-        text = ' '.join(parts).strip()
-    else:
-        text = ''
-    # Skip tool-call-only assistant turns that have no actual text
-    if role == 'assistant' and not text and msg.get('tool_calls'):
-        return ''
-    return normalize_text(text)
-
-
-def summarize_devin_session(session: DevinSession, keywords: list[str]) -> SessionSummary | None:
-    """Extract turns from a Devin Local session's message_nodes."""
-    import sqlite3
-
-    turns: list[Turn] = []
-    started_at: str | None = None
-    seen_message_ids: set[str] = set()
-
-    conn = sqlite3.connect(str(DEVIN_SESSIONS_DB))
-    try:
-        cursor = conn.execute(
-            'SELECT chat_message, created_at FROM message_nodes '
-            'WHERE session_id = ? ORDER BY node_id',
-            (session.id,),
-        )
-        for row in cursor.fetchall():
-            raw_json, created_ts = row
-            try:
-                msg = json.loads(raw_json)
-            except json.JSONDecodeError:
-                continue
-            # Deduplicate by message_id — the tree duplicates messages
-            # across parent-chain nodes; take the first occurrence.
-            mid = msg.get('message_id')
-            if mid:
-                if mid in seen_message_ids:
-                    continue
-                seen_message_ids.add(mid)
-            role = msg.get('role', '')
-            if role not in ('user', 'assistant'):
-                continue
-            text = extract_devin_chat_text(msg)
-            if not text:
-                continue
-            timestamp = datetime.fromtimestamp(created_ts, tz=UTC).isoformat() if created_ts else None
-            if started_at is None:
-                started_at = timestamp
-            turns.append(Turn(role=role, text=text, timestamp=timestamp))
-    finally:
-        conn.close()
-
-    if not turns:
-        return None
-
-    modified_at = datetime.fromtimestamp(session.last_activity_at, tz=UTC)
-    return SessionSummary(
-        source='windsurf',
-        path=Path(session.id),  # use session ID as pseudo-path
-        modified_at=modified_at,
-        started_at=started_at,
-        turns=turns,
-        score=score_session(turns, keywords),
-        project_hint=_normalize_devin_path(session.working_directory),
-    )
 
 
 def load_recent_pi_session_paths(project_path: Path, *, days: int) -> list[Path]:
@@ -364,6 +304,8 @@ def extract_turn(record: dict[str, Any]) -> Turn | None:
         if isinstance(message, dict):
             text = extract_text_from_content(message.get('content'))
             if text:
+                if record_type == 'user' and text.startswith(CLAUDE_INJECTED_USER_PREFIXES):
+                    return None
                 return Turn(role=record_type, text=text, timestamp=timestamp)
         return None
 
@@ -371,7 +313,7 @@ def extract_turn(record: dict[str, Any]) -> Turn | None:
         payload = record.get('payload')
         if isinstance(payload, dict) and isinstance(payload.get('content'), str):
             text = normalize_text(payload['content'])
-            if text:
+            if text and not text.startswith(CLAUDE_INJECTED_USER_PREFIXES):
                 return Turn(role='user', text=text, timestamp=timestamp)
     return None
 
@@ -386,7 +328,10 @@ def extract_codex_message_text(content: Any) -> str:
         block_type = block.get('type')
         if block_type in {'input_text', 'output_text'} and isinstance(block.get('text'), str):
             parts.append(block['text'])
-    return normalize_text('\n'.join(parts))
+    text = normalize_text('\n'.join(parts))
+    if text and any(pattern in text for pattern in CODEX_NOISE_PATTERNS):
+        return ''
+    return text
 
 
 def extract_pi_message_text(content: Any) -> str:
@@ -416,8 +361,6 @@ def extract_codex_turn(record: dict[str, Any]) -> Turn | None:
         return None
     text = extract_codex_message_text(payload.get('content'))
     if not text:
-        return None
-    if role == 'user' and any(pattern in text for pattern in CODEX_NOISE_PATTERNS):
         return None
     return Turn(role=role, text=text, timestamp=record.get('timestamp'))
 
@@ -479,6 +422,50 @@ def read_pi_session_project_hint(path: Path) -> str | None:
     return None
 
 
+def read_claude_session_metadata(path: Path) -> dict[str, str]:
+    """Return cwd/gitBranch/model from the first record that carries each field."""
+    out: dict[str, str] = {}
+    try:
+        with path.open(encoding='utf-8') as handle:
+            for _ in range(16):
+                line = handle.readline()
+                if not line:
+                    break
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                for key in ('cwd', 'gitBranch', 'model'):
+                    if key in record and key not in out and isinstance(record[key], str):
+                        out[key] = record[key]
+                if {'cwd', 'gitBranch'}.issubset(out):
+                    break
+    except OSError:
+        return out
+    return out
+
+
+def read_codex_session_metadata(path: Path) -> dict[str, str]:
+    out: dict[str, str] = {}
+    try:
+        with path.open(encoding='utf-8') as handle:
+            first = handle.readline()
+            if first:
+                try:
+                    record = json.loads(first)
+                except json.JSONDecodeError:
+                    return out
+                if record.get('type') == 'session_meta' and isinstance(record.get('payload'), dict):
+                    payload = record['payload']
+                    for key in ('model', 'model_provider'):
+                        if key in payload and isinstance(payload[key], str):
+                            out['model'] = payload[key]
+                            break
+    except OSError:
+        return out
+    return out
+
+
 def score_session(turns: list[Turn], keywords: list[str]) -> int:
     if not turns:
         return 0
@@ -497,6 +484,15 @@ def score_session(turns: list[Turn], keywords: list[str]) -> int:
     score += min(assistant_long_turns, 4)
     score += min(len(turns), 12)
     return score
+
+
+def _dedupe_consecutive(turns: list[Turn]) -> list[Turn]:
+    out: list[Turn] = []
+    for turn in turns:
+        if out and out[-1].role == turn.role and out[-1].text[:DEDUPE_TEXT_PREFIX] == turn.text[:DEDUPE_TEXT_PREFIX]:
+            continue
+        out.append(turn)
+    return out
 
 
 def summarize_session(path: Path, keywords: list[str]) -> SessionSummary | None:
@@ -518,6 +514,10 @@ def summarize_session(path: Path, keywords: list[str]) -> SessionSummary | None:
                 turns.append(turn)
     if not turns:
         return None
+    turns = _dedupe_consecutive(turns)
+    if not turns:
+        return None
+    metadata = read_claude_session_metadata(path)
     modified_at = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
     return SessionSummary(
         source='claude',
@@ -526,6 +526,11 @@ def summarize_session(path: Path, keywords: list[str]) -> SessionSummary | None:
         started_at=started_at,
         turns=turns,
         score=score_session(turns, keywords),
+        project_hint=metadata.get('cwd'),
+        cwd=metadata.get('cwd'),
+        git_branch=metadata.get('gitBranch'),
+        model=metadata.get('model'),
+        keywords=tuple(keywords),
     )
 
 
@@ -549,6 +554,10 @@ def summarize_codex_session(path: Path, keywords: list[str]) -> SessionSummary |
                 turns.append(turn)
     if not turns:
         return None
+    turns = _dedupe_consecutive(turns)
+    if not turns:
+        return None
+    metadata = read_codex_session_metadata(path)
     modified_at = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
     return SessionSummary(
         source='codex',
@@ -558,6 +567,9 @@ def summarize_codex_session(path: Path, keywords: list[str]) -> SessionSummary |
         turns=turns,
         score=score_session(turns, keywords),
         project_hint=project_hint,
+        cwd=project_hint,
+        model=metadata.get('model'),
+        keywords=tuple(keywords),
     )
 
 
@@ -581,6 +593,9 @@ def summarize_pi_session(path: Path, keywords: list[str]) -> SessionSummary | No
                 turns.append(turn)
     if not turns:
         return None
+    turns = _dedupe_consecutive(turns)
+    if not turns:
+        return None
     modified_at = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
     return SessionSummary(
         source='pi',
@@ -590,6 +605,8 @@ def summarize_pi_session(path: Path, keywords: list[str]) -> SessionSummary | No
         turns=turns,
         score=score_session(turns, keywords),
         project_hint=project_hint,
+        cwd=project_hint,
+        keywords=tuple(keywords),
     )
 
 
@@ -602,17 +619,17 @@ def to_markdown(project_dir: Path, sessions: list[SessionSummary]) -> str:
         '',
     ]
     for index, session in enumerate(sessions, start=1):
-        if session.source == 'windsurf':
-            label = f'{session.path.name} (Devin Local)'
-        else:
-            label = session.path.name
-        lines.append(f'## {index}. {label}')
+        lines.append(f'## {index}. {session.path.name}')
         lines.append(f'- Source: {session.source}')
         lines.append(f'- Modified: {session.modified_at.isoformat()}')
         if session.started_at:
             lines.append(f'- Started: {session.started_at}')
-        if session.project_hint:
-            lines.append(f'- Session cwd: `{session.project_hint}`')
+        if session.cwd:
+            lines.append(f'- Cwd: `{session.cwd}`')
+        if session.git_branch:
+            lines.append(f'- Git branch: `{session.git_branch}`')
+        if session.model:
+            lines.append(f'- Model: `{session.model}`')
         lines.append(f'- Score: {session.score}')
         lines.append(f'- Preview: {session.preview or "(no preview)"}')
         lines.append('- Turns:')
@@ -633,7 +650,9 @@ def to_json(project_dir: Path, sessions: list[SessionSummary]) -> str:
                 'path': str(session.path),
                 'modified_at': session.modified_at.isoformat(),
                 'started_at': session.started_at,
-                'project_hint': session.project_hint,
+                'cwd': session.cwd,
+                'git_branch': session.git_branch,
+                'model': session.model,
                 'score': session.score,
                 'preview': session.preview,
                 'turns': [
@@ -654,14 +673,15 @@ def to_json(project_dir: Path, sessions: list[SessionSummary]) -> str:
 def main() -> int:
     args = parse_args()
     project_path = resolve_project_path(args)
-    sessions = []
+    per_source_buckets: dict[str, list[SessionSummary]] = {'claude': [], 'codex': [], 'pi': []}
     if args.source in {'all', 'claude'}:
         project_dir = resolve_project_dir(args)
         try:
             claude_paths = load_recent_claude_session_paths(
                 project_dir,
+                project_path,
                 days=args.days,
-                max_sessions=args.max_sessions,
+                max_sessions=args.per_source,
             )
         except FileNotFoundError:
             if args.source == 'claude':
@@ -670,7 +690,7 @@ def main() -> int:
         for path in claude_paths:
             summary = summarize_session(path, args.keyword)
             if summary is not None:
-                sessions.append(summary)
+                per_source_buckets['claude'].append(summary)
     if args.source in {'all', 'codex'}:
         try:
             codex_paths = load_recent_codex_session_paths(project_path, days=args.days)
@@ -681,7 +701,7 @@ def main() -> int:
         for path in codex_paths:
             summary = summarize_codex_session(path, args.keyword)
             if summary is not None:
-                sessions.append(summary)
+                per_source_buckets['codex'].append(summary)
     if args.source in {'all', 'pi'}:
         try:
             pi_paths = load_recent_pi_session_paths(project_path, days=args.days)
@@ -692,18 +712,11 @@ def main() -> int:
         for path in pi_paths:
             summary = summarize_pi_session(path, args.keyword)
             if summary is not None:
-                sessions.append(summary)
-    if args.source in {'all', 'windsurf'}:
-        try:
-            devin_sessions = load_recent_devin_sessions(project_path, days=args.days)
-        except FileNotFoundError:
-            if args.source == 'windsurf':
-                raise
-            devin_sessions = []
-        for ds in devin_sessions:
-            summary = summarize_devin_session(ds, args.keyword)
-            if summary is not None:
-                sessions.append(summary)
+                per_source_buckets['pi'].append(summary)
+    sessions: list[SessionSummary] = []
+    for bucket in per_source_buckets.values():
+        bucket.sort(key=lambda item: (item.score, item.modified_at), reverse=True)
+        sessions.extend(bucket[: args.per_source])
     sessions.sort(key=lambda item: (item.score, item.modified_at), reverse=True)
     sessions = sessions[: args.max_sessions]
     if args.json:
