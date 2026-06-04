@@ -14,6 +14,7 @@ See `AGENTS.md` for repository maintenance guidance.
 - [`prune`](prune/SKILL.md) — repository inspection guidance for code-reading tasks
 - [`repo-init`](repo-init/SKILL.md) — create `AGENTS.md` for a repository from its real files and conventions
 - [`surfwind`](surfwind/SKILL.md) — drive the local Windsurf runtime through the `surfwind` CLI
+- [`roco-pvp-advisor`](roco-pvp-advisor/SKILL.md) — 洛克王国世界 PVP 顾问：队伍分析、回合博弈推理、精灵技能数据查询
 
 ## Notes
 
