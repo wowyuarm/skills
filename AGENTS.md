@@ -21,6 +21,7 @@ Current top-level skills:
 - `deepwiki/`
 - `proxy-vps-ops/`
 - `repo-init/`
+- `skill-manager/`
 
 Keep this list in sync with the actual top-level skill directories.
 If you add, remove, rename, or install a skill in this repository, update the skill indexes in both `README.md` and `AGENTS.md` in the same change.

@@ -11,6 +11,7 @@ See `AGENTS.md` for repository maintenance guidance.
 - [`deepwiki`](deepwiki/SKILL.md) — query DeepWiki documentation for public GitHub repositories over HTTP
 - [`proxy-vps-ops`](proxy-vps-ops/SKILL.md) — manage the lifecycle of a self-hosted VPS used as a personal proxy node
 - [`repo-init`](repo-init/SKILL.md) — create `AGENTS.md` for a repository from its real files and conventions
+- [`skill-manager`](skill-manager/SKILL.md) — create, install, revise, or retire agent skills across harnesses, including skill-local configuration and credentials
 
 ## Notes
 
