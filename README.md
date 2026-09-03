@@ -7,6 +7,7 @@ See `AGENTS.md` for repository maintenance guidance.
 ## Skills
 
 - [`ai-discussion-recap`](ai-discussion-recap/SKILL.md) — summarize useful recent discussion from local Claude Code, Codex, and Pi session logs
+- [`codebase-ablation`](codebase-ablation/SKILL.md) — measure a module's real load-bearing role by deleting or stubbing it and running the test suite; coupling map, blast radius, hidden-dependency detection
 - [`deepwiki`](deepwiki/SKILL.md) — query DeepWiki documentation for public GitHub repositories over HTTP
 - [`openclaw`](openclaw/SKILL.md) — answer OpenClaw questions using local docs, DeepWiki, and official site
 - [`openclaw-weixin-maintenance`](openclaw-weixin-maintenance/SKILL.md) — maintain Yu's self-use OpenClaw Weixin plugin patch layer

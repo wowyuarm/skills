@@ -17,6 +17,7 @@
 
 Current top-level skills:
 - `ai-discussion-recap/`
+- `codebase-ablation/`
 - `deepwiki/`
 - `openclaw/`
 - `openclaw-weixin-maintenance/`
