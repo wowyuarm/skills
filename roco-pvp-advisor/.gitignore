@@ -1,5 +1,0 @@
-# .gitignore
-
-data/roco.db
-references/my-team.md
-scripts/__pycache__/
