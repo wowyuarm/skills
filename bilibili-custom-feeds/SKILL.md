@@ -1,0 +1,67 @@
+---
+name: bilibili-custom-feeds
+description: Build and tune a personal, rule-authored video feed for one Bilibili user, delivered as a Tampermonkey userscript that runs in their own logged-in browser. Use when someone wants to define their own Bilibili recommendations instead of the platform algorithm, wants more of the kind of video they coin/favorite/finish, wants long-video completion to count for more, or asks to adjust an existing bilibili-custom-feeds script. Covers seed selection from the user's own history, expansion via related videos, interaction-density ranking, and the API capabilities and hard caps that constrain all of it.
+---
+
+# Bilibili Custom Feeds
+
+Give one user their own Bilibili recommendation feeds: they write the rules, the script obeys. The deliverable is a Tampermonkey userscript that runs inside their logged-in browser and renders extra feeds from a config block they can edit.
+
+This is a personalization-by-rules method, not a recommender-model method. The user's own strongest signals — what they coined, favorited, and finished watching — are the anchors. Do not replace that with a black-box resemblance score; the whole point is that the person can read and change the rule.
+
+## The one architectural decision
+
+**Always deliver a userscript, never a standalone script or a backend.**
+
+A standalone caller has two problems that a userscript does not have at all:
+- It needs the user's login cookie, which you must obtain, store, and keep fresh.
+- It is rate-limited as an ordinary non-browser client (Bilibili returns 412 for some endpoints outside a browser, e.g. `space/wbi/arc/search`).
+
+Inside the user's own browser, both vanish: the session is already there, and requests come from the real page origin with the real cookies. CORS permits it — `api.bilibili.com` answers `Origin: https://www.bilibili.com` with `access-control-allow-origin: https://www.bilibili.com` and credentials allowed.
+
+Keep a throwaway Python caller only for one-off diagnostics (see `scripts/bili_dist.py`), never as the long-term surface.
+
+## Method
+
+1. **Diagnose the gap first, if the user will share a cookie.** Pull their real recommendation feed and their actual interests, and quantify the overlap. This tells you whether the complaint is "algorithm is bad" (low overlap) or "I want a different shape" (topic mismatch). See `references/api-notes.md` for endpoints and caps.
+2. **Choose seeds from the user's own actions, ranked by how costly the action was.** Coin (costs money) > favorite > like > finished-watching. Do not use raw "watched" from history — most items are opened and abandoned; only `progress/duration >= 0.85` (or `is_finish`) means real approval.
+3. **Expand each seed through `archive/related`** — the platform's own "similar videos" graph, anchored on things the user already approved. Interleave buckets so no single seed dominates.
+4. **Rank by interaction density, not view count.** `coinRate*100 + favRate*12 + likeRate*3`, and drop items under a view floor (about 20000) because small samples make the rate meaningless. Raw views reward big accounts; the whole point is to surface scarce approval.
+5. **Weight completion of long videos higher, when the user asks for it.** A seed's weight rises with its duration: `w = 1 + log2(max(dur,60)/60)`, capped at 4 (3 min → 1, 40 min → 2.8, 2 h → 3.9). Apply it twice: weighted sampling of anchors, and a multiplier on the final rank.
+6. **When the user wants out of their filter bubble, build the escape from their own history, not a fixed list.** The watch-history response carries `tag_name` (partition) and `author_name` per item; count them into a taste profile, then a "discovery" feed keeps only items whose partition and UP are *not* in that profile. This is evidence-based: it excludes what this user actually over-consumes, and it adapts as their habits change. Do not hardcode "the algorithm pushes X, so block X". Show the derived profile at the bottom of the discovery feed so the rule is not a black box.
+7. **Expose the recipe as a data block at the top of the file** — a `FEEDS` array the user edits and reloads. No rebuild, no asking you.
+
+## Writing the recipe
+
+Each feed is an object: `sources`, `filters`, `sort`, `limit`. Source types are `following`, `search`, `ranking`, `upRecent`, `expand`, `related`. Sort modes are `newest`, `hot`, `quality`.
+
+- **Prefer naming UPs (`upRecent`) over keyword `search`.** Keyword search returns whatever matches the string at high volume — a topic word pulls in exam-prep and course videos. A concrete UP list is far more precise and needs no guesswork about vocabulary.
+- **Filter globally, not per-feed, for platform noise.** Add promo words like the incentive-programme tag to a global block list; they appear across all feeds.
+- **A feed with a hard duration floor** (`minDuration` in seconds) is how "long videos only" is expressed.
+- **The discovery feed needs a coverage floor and a count threshold.** Only partitions seen more than `TNAME_MIN_SAMPLE` times (about 8) count as "habitually watched", and a view floor (`minView`) keeps the escape from surfacing obscure junk. Category names differ between endpoints — the history `tag_name` and the ranking `tname` are not the same vocabulary (e.g. history says `电子竞技`, ranking says `游戏`), so match by containment, not equality.
+- **Do not write a feed whose only source is a list the user has not filled in yet.** A `upRecent` feed with an empty `ups` array renders empty; detect that case and show a hint telling them where to fill it in.
+
+## Two failure modes to design against
+
+These are the ones that actually bite, all seen in real use:
+
+- **Dense request bursts cause intermittent fetch failures.** Pulling seeds and expanding many anchors fires dozens of requests; without retry, some fail and the seed pool silently shrinks by half (observed: favorites 130→75, finished 14→0 on a bad run). Put every request behind one shared function with backoff retry, and treat "some step failed" as a flag to re-fetch soon rather than to cache as complete.
+- **Seen-marking makes feeds look empty over a day.** Marking rendered items as seen is what makes a feed feel fresh, but a small feed (the core "similar to what you coined" feed) will bottom out after a few visits and only recover the next day. This is intended; say so plainly instead of letting the user think it is broken.
+- **A response field can be named differently from what you expect.** History gives `tag_name`/`author_name`, and a build that reads `tag`/`author` gets empty counters and a discovery feed that filters nothing. Verify field names against a live response before trusting a data-model assumption.
+- **Async renders race when the user switches feeds.** The first feed's fetch can take 20+ seconds; if they click another tab meanwhile, the first feed's result lands last and overwrites the second. Guard every render with a monotonic token and drop a stale result — do not just make the test wait, or the real app still races.
+- **A derived-profile filter must ensure its profile is loaded, and load it once.** If the discovery feed is the first tab opened, the taste profile has not been built yet, so nothing is excluded and the feed silently behaves like a plain ranking. Await the seed/profile load before filtering, and dedupe that load with an in-flight promise so two feeds opening at once do not each run the full crawl.
+
+Caching is the counterweight: cache seeds for ~6 h and each seed's related list for ~6 h. The first load is slow (the full seed crawl); every later load is near-instant, and cached anchors stop re-firing requests — which is also what keeps the rate limiter calm. Give the user a "reroll" control that drops both caches to draw a fresh batch.
+
+## What constrains every design
+
+- **The coin list caps at 3 items, always.** This is Bilibili's limit, not a bug and not fixable. Say so up front; the practical remedy is to tell the user to favorite/coin good videos to thicken the signal. The like list caps around 20; watch history reaches 1000+ and is the real well.
+- **Do not over-promise a new-video feed from seeds.** Anchoring on old approvals yields old-adjacent videos. A separate "today" feed from follows is the honest place for new content; seeds are for quality.
+- **Only ranking dimension `rid=0` is reliably reachable; some other dimension ids return error `-352` (risk control) outside the browser.** `rid=3`, `36` also returned data in testing, but treat per-dimension ranking as unreliable and prefer sampling the full ranking plus filtering when a broad discovery pool is wanted.
+
+## Assets and scripts
+
+- `assets/bili-custom-feeds.user.js` — a **generic template**, not any one person's config. It ships with an empty `upRecent` ups list and example feeds; the user fills in their own. Keep it that way: never commit a copy carrying a real person's feeds, UP names, or filters — this repo is published, and a personal config is not a template.
+- `scripts/browser-test.mjs` — drive headless Chrome + CDP to inject the userscript against a real session and confirm each feed renders. Takes a feed index; `BILI_SESSDATA_FILE` must point at a SESSDATA file. It waits for the opening feed to settle before switching tabs — otherwise the slower first feed lands last and overwrites the grid, which once looked like a broken feed. Requires `google-chrome`.
+- `scripts/bili_dist.py` — one-off diagnostic: pull a real recommendation feed and print the distribution (UP frequency, duration, age, follow ratio, topic tags). Needs a cookie file.
+- `references/api-notes.md` — verified endpoints, signing, capabilities, and hard caps. Read before touching the data layer.

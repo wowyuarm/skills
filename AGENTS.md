@@ -17,6 +17,7 @@
 
 Current top-level skills:
 - `ai-discussion-recap/`
+- `bilibili-custom-feeds/`
 - `codebase-ablation/`
 - `deepwiki/`
 - `proxy-vps-ops/`
