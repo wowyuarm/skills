@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bili 自定义流
 // @namespace    bili.custom.feeds
-// @version      1.0
+// @version      1.1
 // @description  自己定义几条推荐流，而不是被算法喂。配方集中在顶部 FEEDS，改一行即可。
 // @match        https://www.bilibili.com/*
 // @run-at       document-idle
@@ -21,11 +21,14 @@
  *  - B站首页 DOM 改版频繁，硬塞进去很容易坏。面板自成一格，B站怎么改都不影响。
  *
  * 数据从哪来（都用浏览器自己的登录态，不经过任何第三方）
- *  - following : 你关注 UP 的新投稿
- *  - search    : 关键词搜索（需要 WBI 签名）
- *  - ranking   : 排行榜（rid=0 全站；rids=[...] 可多分区混取）
- *  - upRecent  : 指定 UP 的最近投稿
- *  - expand    : 用你投币/收藏/点赞/看完过的视频当锚，顺着“相关推荐”往外扩
+ *  - following      : 你关注 UP 的新投稿（动态流，一次请求覆盖全部关注）
+ *  - followedUps    : 关注动态流里只要够长的（「长片」流用）
+ *  - expandFollowed : 拿关注里的长片当锚，顺相关推荐往外扩（「深挖」流用）
+ *  - search         : 关键词搜索（需要 WBI 签名）
+ *  - ranking        : 排行榜（rid=0 全站；rids=[...] 可多分区混取）
+ *  - upRecent       : 指定 UP 的最近投稿
+ *  - expand         : 用你投币/收藏/点赞/看完过的视频当锚，顺着“相关推荐”往外扩
+ *  - related        : 你指定 bvid 的“相关推荐”
  */
 
 (function () {
@@ -35,24 +38,62 @@
   // 目标：高质量的视频，尤其是"我投币的那类"。
   // 思路：把"我投过币 / 收藏过"的片子当种子，顺着它们的相关推荐往外扩——
   //       不靠 B站算法猜，靠我自己已经认可过的东西当锚。
+  //
+  // ── 先定两个跟人相关的开关（放在 FEEDS 之前，下面会引用到）──
+  // PINNED_UPS：不管抽签抽到谁，这几个人「每轮必查」。
+  //   「长片」和「指定UP」都从这里取人。想让谁优先级更高，把名字或 mid 加进来。
+  //   填名字或 mid 都行；名字写错不会报错，只会被跳过（控制台会打印「找不到 UP」）。
+  //   留空也能用：那时「长片」完全按关注动态流走，「指定UP」是空的（面板会给提示）。
+  const PINNED_UPS = [
+    // '某个UP的名字',    // 例：写名字
+    // 123456,            // 例：写 mid
+  ];
+  // 「长片」流没登录时（动态流拿不到）退回「按人查投稿」，一次查几个人。
+  // 别调太大：那个接口连打十几个就会被限流。每个人查过之后缓存 6 小时，
+  // 所以只有第一次开这条流要等，之后基本是秒出。
+  const FOLLOWED_SAMPLE = 12;
+
   const FEEDS = [
     {
-      // 核心流：用你自己认可过的东西当锚往外扩。
-      // seeds 可选 coins / likes / favs / watched（或 all 合并）。
       name: '投币同款',
       sources: [
-        { type: 'expand', seeds: 'coins', perSeed: 3 },     // 投币过的（最硬的认可，但数量少）
-        { type: 'expand', seeds: 'favs', perSeed: 10 },     // 收藏过的
-        { type: 'expand', seeds: 'watched', perSeed: 12 },  // 看完的（历史里最富的信号）
+        { type: 'expand', seeds: 'coins', perSeed: 3 },     // 我投币的（最硬的认可）
+        { type: 'expand', seeds: 'favs', perSeed: 10 },     // 我收藏的
+        { type: 'expand', seeds: 'watched', perSeed: 12 },  // 我看完的（历史里最富的信号）
       ],
       filters: { excludeKeywords: ['广告'], minDuration: 120, maxDuration: null,
                  excludeSeen: true, minView: 20000, maxAgeDays: 1825 },
-      sort: 'quality',           // 按互动密度排：投币率×100 + 收藏率×12 + 点赞率×3
+      sort: 'quality',
       limit: 60,
     },
     {
-      // 跳出信息茧房：从全站榜里只留「你平时不看的」分区和 UP。
-      // 依据是你观看历史统计出的常看分区/常看 UP（看够 TNAME_MIN_SAMPLE 次才算常看）。
+      // 从「我关注的人」里挑长视频。
+      // 依据：关注列表是我自己一份份点出来的，比算法更知道我认谁——脚本以前从没用过它。
+      // 走关注动态流（一次请求覆盖全部关注），不按人挨个查——那样会被风控。
+      name: '长片',
+      sources: [
+        { type: 'followedUps', pages: 3, minDur: 600 },
+      ],
+      filters: { excludeKeywords: [], minDuration: 600, maxDuration: null, excludeSeen: true },
+      sort: 'density',                                  // 弹幕+评论密度 × 片长加成
+      limit: 60,
+    },
+    {
+      // 「横向拓展 + 再深挖」：拿上面那些关注 UP 的长视频当锚，顺着相关推荐
+      // 找到同类内容，但作者多半是我还没关注的人。这一层才有新东西。
+      name: '深挖',
+      sources: [
+        { type: 'expandFollowed', perSeed: 10, seedMinDur: 600 },
+      ],
+      filters: { excludeKeywords: ['广告'], minDuration: 300, maxDuration: null,
+                 excludeSeen: true, minView: 10000, maxAgeDays: 1825 },
+      sort: 'quality',                                  // 这里能拿到投币/收藏，用真质量分
+      limit: 60,
+    },
+    {
+      // 跳出茧房：从全站榜里只留「我平时不看的」分区和 UP，混着给你换口味。
+      // 有依据：依据是你观看历史统计出的常看分区/常看 UP（看够 8 次才算常看）。
+      // 想更狠就把 broadRids 打开（多取几个你几乎不碰的分区）。
       name: '出圈',
       sources: [
         { type: 'ranking', rid: 0 },
@@ -64,19 +105,21 @@
       limit: 40,
     },
     {
-      // 盯某个 UP。比关键词搜索准（搜索会拉教辅/网课）。
-      name: '指定UP',
+      name: '今天',
       sources: [
-        { type: 'upRecent', ups: [], pages: 1 },
+        { type: 'following' },
       ],
       filters: { excludeKeywords: [], minDuration: 0, maxDuration: null, excludeSeen: true },
       sort: 'newest',
       limit: 60,
     },
     {
-      name: '今天',
+      // 想盯哪个 UP，把名字填进去（比关键词搜索准，搜索会拉教辅/网课）。
+      // 这里默认取上面 PINNED_UPS 里点名的那几个；也可以直接在 ups 里写。
+      // 两边都空着这条流就是空的，面板会提示你填哪。
+      name: '指定UP',
       sources: [
-        { type: 'following' },
+        { type: 'upRecent', ups: PINNED_UPS.slice(), pages: 1 },
       ],
       filters: { excludeKeywords: [], minDuration: 0, maxDuration: null, excludeSeen: true },
       sort: 'newest',
@@ -92,6 +135,8 @@
   const QUALITY_MIN_VIEW = 20000;
   // 「出圈」用：观看历史里某个分区/UP 出现几次才算「我常看」
   const TNAME_MIN_SAMPLE = 8;
+  // UP 名 → mid 的映射存这里，抽签时直接用，不用每次搜索
+  const FOLLOW_KEY = 'bcf_follows';
   // ═══════════════════════════════════════════════════════════════════════════
 
   const UA_OK = /bilibili\.com/.test(location.hostname);
@@ -115,6 +160,9 @@
 
   // 统一出口：任何一次请求失败（限流/网络抖动）都退避重试，最多 3 次。
   // 之前踩的坑：请求发太密偶发 "Failed to fetch"，没有重试 ⇒ 种子少一半。
+  //
+  // 例外：拿到 HTML（B站的拦截页，不是 JSON）时立刻放弃，不重试。
+  // 那是风控在说「你打太快了」——再重试只会越陷越深（实测：连打十几个 UP 就会这样）。
   async function fetchJson(url, tries) {
     tries = tries || 3;
     let lastErr;
@@ -122,9 +170,12 @@
       try {
         const r = await fetch(url, { credentials: 'include' });
         if (!r.ok) throw new Error('HTTP ' + r.status);
-        return await r.json();
+        const txt = await r.text();
+        if (txt.charCodeAt(0) === 60) throw new Error('BLOCKED(html)');   // 60 = '<'
+        return JSON.parse(txt);
       } catch (e) {
         lastErr = e;
+        if (String(e.message) === 'BLOCKED(html)') break;                 // 风控，别硬撞
         if (i < tries - 1) await sleep(700 * (i + 1) + Math.random() * 500);  // 0.7s / 1.4s
       }
     }
@@ -188,9 +239,16 @@
   // 统一条目：{ bvid, title, up, upMid, dur(秒), pubdate(秒), view, pic, tname, _src }
   function norm(o) { return o; }
 
-  async function srcFollowing() {
+  // 关注动态流。一次请求就能翻到「我全部关注的人」的最新投稿（约 20 条一页），
+  // 而不是按人一个个去查——这是所有数据里性价比最高的一条：
+  // 那些 UP 是我自己一个个点出来的，这是我最直接的认可，而且它不怕风控。
+  //
+  // 注意：动态流要登录。它只返回「关注的人近期发的」，也就是新片；
+  // 想挖某个 UP 的老片，用下面的 upRecent / followedUps。
+  async function srcFollowing(src) {
     const out = [];
-    for (let page = 1; page <= 2; page++) {
+    const pages = (src && src.pages) || 3;
+    for (let page = 1; page <= pages; page++) {
       const d = await apiGet('https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/all',
         { type: 'video', page });
       const items = (d.data && d.data.items) || [];
@@ -204,11 +262,11 @@
           bvid: a.bvid, title: a.title, up: au.name, upMid: au.mid,
           dur: parseDur(a.duration_text), pubdate: a.pubdate || 0,
           view: parseInt(((a.stat && a.stat.play) || '0').replace(/[^\d]/g, '')) || 0,
-          pic: a.cover, tname: '', _src: 'following',
+          pic: a.cover, tname: '', _src: '关注:' + (au.name || ''),
         }));
       }
       if (items.length < 20) break;
-      await sleep(600);
+      await sleep(700);
     }
     return out;
   }
@@ -276,6 +334,42 @@
     return exact.mid;
   }
 
+  // 抓某个 UP 的近期投稿。order 可选 pubdate（最新）或 click（最多播放）。
+  // 注意：这个接口给的统计只有 play / video_review(弹幕) / comment，没有投币和收藏，
+  // 所以走这里的条目不能直接用 qualityScore（它要 coin/fav）——见 densityScore。
+  //
+  // 这个接口是最容易被限流的一个：连打十几个 UP 就会返回一段 HTML 拦截页（不是 JSON），
+  // 表现成「这条流突然空了」。所以每次结果都按 UP 缓存 6 小时——第二次开流几乎不发请求。
+  const UPV_KEY = 'bcf_upv';
+  function upvCache() { try { return JSON.parse(localStorage.getItem(UPV_KEY) || '{}'); } catch { return {}; } }
+  function upvGet(mid) {
+    const c = upvCache()[mid];
+    return c && c.t > Date.now() ? c.list : null;
+  }
+  function upvPut(mid, list) {
+    try {
+      const c = upvCache();
+      c[mid] = { t: Date.now() + 6 * 3600e3, list };
+      const ks = Object.keys(c);
+      if (ks.length > 200) ks.sort((a, b) => c[a].t - c[b].t).slice(0, ks.length - 200).forEach(k => delete c[k]);
+      localStorage.setItem(UPV_KEY, JSON.stringify(c));
+    } catch {}
+  }
+  async function fetchUpVideos(mid, ps, pn, order) {
+    const fresh = upvGet(mid);
+    if (fresh) return fresh;
+    const d = await wbiGet('/x/space/wbi/arc/search', { mid, ps, pn, order: order || 'pubdate' });
+    // 必须看 code：被风控时它返回 -352 和一个空的 data，不是抛异常。
+    // 不看的话就会把「被拦了」当成「这个人最近没发长片」——静默出错最难查。
+    if (d.code !== 0) {
+      const isRisk = d.code === -352 || d.code === -412 || d.code === -509;
+      throw new Error((isRisk ? 'BLOCKED(code ' : 'code ') + d.code + ') ' + (d.message || ''));
+    }
+    const vl = (((d.data || {}).list) || {}).vlist || [];
+    if (vl.length) upvPut(mid, vl);           // 只有真拿到东西才缓存，别把失败也记进去
+    return vl;
+  }
+
   async function srcUpRecent(src) {
     const out = [];
     const pages = src.pages || 1;
@@ -284,19 +378,202 @@
       if (!mid) { console.warn('[bcf] 找不到 UP:', name); continue; }
       for (let pn = 1; pn <= pages; pn++) {
         try {
-          const d = await wbiGet('/x/space/wbi/arc/search', { mid, ps: 30, pn, order: 'pubdate' });
-          const vl = (((d.data || {}).list) || {}).vlist || [];
+          const vl = await fetchUpVideos(mid, 30, pn, 'pubdate');
           for (const v of vl) {
             out.push(norm({
               bvid: v.bvid, title: v.title, up: v.author, upMid: mid,
               dur: parseDur(v.length), pubdate: v.created || 0,
-              view: v.play || 0, pic: v.pic ? (v.pic.startsWith('//') ? 'https:' + v.pic : v.pic) : '',
-              tname: v.typeid ? '' : '', _src: 'up:' + name,
+              view: v.play || 0, danmaku: v.video_review || 0, comment: v.comment || 0,
+              pic: v.pic ? (v.pic.startsWith('//') ? 'https:' + v.pic : v.pic) : '',
+              tname: '', _src: 'up:' + name,
             }));
           }
         } catch (e) { console.warn('[bcf] upRecent 失败', name, e); }
         await sleep(700);
       }
+    }
+    return out;
+  }
+
+  // ── 我的关注列表 ──
+  // 这是脚本里最有依据的一份数据：这些 UP 是我自己一个个点出来的关注。
+  // 关注列表要登录才拿得到；拿到后缓存 7 天，之后抽签不必再取。
+  function followCache() {
+    try {
+      const c = JSON.parse(localStorage.getItem(FOLLOW_KEY) || 'null');
+      if (c && c.t && Date.now() < c.t && Array.isArray(c.list)) return c.list;
+    } catch {}
+    return null;
+  }
+  function saveFollows(list) {
+    try {
+      localStorage.setItem(FOLLOW_KEY, JSON.stringify({ t: Date.now() + 7 * 86400e3, list }));
+    } catch {}
+  }
+  let _follows = null, _followsFlight = null;
+  async function myFollows() {
+    if (_follows) return _follows;
+    if (_followsFlight) return _followsFlight;
+    _followsFlight = (async () => {
+      const cached = followCache();
+      if (cached) return (_follows = cached);
+      try {
+        const uid = await myMid();
+        const list = [];
+        for (let pn = 1; pn <= 6; pn++) {                  // 117 个关注，3 页够；多留几页
+          const d = await apiGet('https://api.bilibili.com/x/relation/followings',
+            { vmid: uid, pn, ps: 50, order: 'desc', order_type: 'attention' });
+          const l = ((d.data) || {}).list || [];
+          for (const u of l) if (u.mid && u.uname) list.push({ mid: u.mid, uname: u.uname });
+          if (l.length < 50) break;
+          await sleep(600);
+        }
+        if (list.length) { saveFollows(list); _follows = list; }
+        else console.warn('[bcf] 关注列表是空的（没登录？）——退回只查点名的那几个');
+        return _follows;
+      } catch (e) {
+        // 没登录 / 接口变了 / 被限流：不要把异常抛到上面，那会让整条流空掉。
+        console.warn('[bcf] 取关注列表失败，退回只查点名的那几个：', e.message || e);
+        return null;
+      }
+    })();
+    try { return await _followsFlight; } finally { _followsFlight = null; }
+  }
+
+  // 抽签：从关注里抽 n 个人，外加 PINNED_UPS 里点名的那几个（每轮必查）。
+  // 为什么要抽而不是全查：117 个人挨个查会发 117 次请求，B站很快给 -352 风控。
+  // 抽到的这把人存进 localStorage 记 6 小时，所以同一批不会每次刷新都变。
+  const PICK_KEY = 'bcf_pick';
+  function pickCache() {
+    try { return JSON.parse(localStorage.getItem(PICK_KEY) || 'null'); } catch { return null; }
+  }
+  function savePick(list) {
+    try { localStorage.setItem(PICK_KEY, JSON.stringify({ t: Date.now() + 6 * 3600e3, list })); } catch {}
+  }
+  async function sampledUps(n) {
+    const cached = pickCache();
+    let picks;
+    if (cached && cached.t > Date.now() && Array.isArray(cached.list) && cached.list.length) {
+      picks = cached.list;
+    } else {
+      const follows = await myFollows();
+      const pool = (follows || []).slice();
+      if (!pool.length) {
+        // 没登录 / 关注拿不到：退回到只查点名的那几个，别让整条流空着。
+        // 注意这里不写缓存——否则登录之后 6 小时内还是只查这几个人。
+        picks = PINNED_UPS.map(u => ({ mid: u, uname: u }));
+      } else {
+        shuffle(pool);
+        picks = pool.slice(0, n);
+        savePick(picks);
+      }
+      console.log('[bcf] 本轮抽到', picks.length, '个 UP：', picks.map(p => p.uname || p.mid).join('、'));
+    }
+    // 钉住的那几个补进去（已在里面就不重复）。名字/ mid 都吃。
+    const extra = PINNED_UPS.filter(p => !picks.some(x => x.mid === p || x.uname === p));
+    return picks.map(p => p.mid).concat(extra);
+  }
+
+  // 「长片」：从关注动态流里只要够长的。
+  // 为什么不用「按人查投稿」：117 个关注要发 117 次请求，B站立刻风控（实测 -352 / 拦截页）。
+  // 动态流一次请求就覆盖全部关注，而且它是「最新投稿」，正好是这个流要的东西。
+  // 动态流要登录；拿不到时（没登录）退回按人查点名的那几个——那条路慢但至少不是空的。
+  async function srcFollowedUps(src) {
+    const minDur = src.minDur || 600;
+    const out = [];
+    const raw = await srcFollowing({ pages: src.pages || 3 });
+    for (const it of raw) {
+      if ((it.dur || 0) >= minDur) out.push(it);
+    }
+    if (out.length) {
+      console.log('[bcf] 长片：动态流拿到', raw.length, '条关注新片，其中 ≥' + Math.round(minDur / 60),
+        '分钟的', out.length, '条');
+      return out;
+    }
+    // 动态流是空的：多半是没登录。退回按人查点名的那几个。
+    console.warn('[bcf] 长片：动态流没东西（没登录？），改查点名的那几个 UP');
+    const ups = await sampledUps(FOLLOWED_SAMPLE);
+    let got = 0, blocked = false;
+    for (const midOrName of ups) {
+      const mid = await resolveMid(midOrName);
+      if (!mid) continue;
+      try {
+        const vl = await fetchUpVideos(mid, 30, 1, 'pubdate');
+        got += vl.length;
+        for (const v of vl) {
+          const dur = parseDur(v.length);
+          if (dur < minDur) continue;
+          out.push(norm({
+            bvid: v.bvid, title: v.title, up: v.author, upMid: mid,
+            dur, pubdate: v.created || 0,
+            view: v.play || 0, danmaku: v.video_review || 0, comment: v.comment || 0,
+            pic: v.pic ? (v.pic.startsWith('//') ? 'https:' + v.pic : v.pic) : '',
+            tname: '', _src: '关注:' + (v.author || ''),
+          }));
+        }
+      } catch (e) {
+        if (String(e.message).indexOf('BLOCKED') === 0) { blocked = true; break; }
+        console.warn('[bcf] 长片：取投稿失败', mid, e.message || e);
+      }
+      await sleep(1400);
+    }
+    console.log('[bcf] 长片（按人查）：查了', ups.length, '人，拿到', got, '条投稿，够长的',
+      out.length, '条', blocked ? '（被限流，提前收手）' : '');
+    return out;
+  }
+
+  // 「深挖」：拿关注 UP 的长视频当锚，顺着「相关推荐」往外扩一层。
+  // 这是「横向拓展再深入」里的第二层：相关推荐里的作者通常是我还没关注的人，
+  // 所以这一层才真的能挖出新东西，而不只是把关注列表重排一遍。
+  async function srcExpandFollowed(src) {
+    // 锚 = 关注动态流里那些长片（一次请求拿到，不按人查）。
+    // 挑长的当锚：长片的相关推荐也更可能是长片，这正是要挖的东西。
+    let anchors = [];
+    try {
+      const raw = await srcFollowing({ pages: 2 });
+      anchors = raw.filter(it => (it.dur || 0) >= (src.seedMinDur || 600))
+        .map(it => ({ bvid: it.bvid, title: it.title, w: 1 }));
+      console.log('[bcf] 深挖：动态流里挑到', anchors.length, '条长片当锚');
+    } catch (e) { console.warn('[bcf] 深挖：动态流失败', e.message || e); }
+    // 动态流拿不到（没登录）：退回用收藏/投币/看完当锚，至少这条流不是空的。
+    let seeds = anchors;
+    if (!seeds.length) {
+      const s = await mySeeds();
+      seeds = [...s.favs, ...s.coins, ...s.likes, ...s.watched];
+      if (!seeds.length) { console.warn('[bcf] 深挖：关注和收藏都拿不到锚'); return []; }
+    }
+    const picks = weightedPick(seeds, src.perSeed || 10);
+    const buckets = [];
+    let fetched = 0;
+    for (const seed of picks) {
+      let bucket = relGet(seed.bvid);
+      if (bucket) { buckets.push(bucket); continue; }
+      bucket = [];
+      try {
+        const d = await apiGet('https://api.bilibili.com/x/web-interface/archive/related', { bvid: seed.bvid });
+        for (const v of ((d.data) || [])) {
+          const st = v.stat || {};
+          bucket.push(norm({
+            bvid: v.bvid, title: v.title, up: v.owner && v.owner.name, upMid: v.owner && v.owner.mid,
+            dur: v.duration || 0, pubdate: v.pubdate || 0,
+            view: st.view || 0, like: st.like || 0, coin: st.coin || 0, fav: st.favorite || 0,
+            pic: v.pic, tname: v.tname || '', seedW: seed.w || 1,
+            _src: '深挖:' + (seed.title || '').slice(0, 10),
+          }));
+        }
+        relPut(seed.bvid, bucket);
+      } catch (e) { console.warn('[bcf] 深挖失败', seed.bvid, e); }
+      buckets.push(bucket);
+      fetched++;
+      await sleep(500);
+    }
+    if (fetched) console.log('[bcf] 深挖现抓', fetched, '个锚（其余走缓存）');
+    const out = [];
+    let more = true, idx = 0;
+    while (more) {
+      more = false;
+      for (const b of buckets) if (idx < b.length) { out.push(b[idx]); more = true; }
+      idx++;
     }
     return out;
   }
@@ -532,10 +809,12 @@
     const all = [];
     for (const s of feed.sources) {
       try {
-        if (s.type === 'following') all.push(...await srcFollowing());
+        if (s.type === 'following') all.push(...await srcFollowing(s));
         else if (s.type === 'search') all.push(...await srcSearch(s));
         else if (s.type === 'ranking') all.push(...await srcRanking(s));
         else if (s.type === 'upRecent') all.push(...await srcUpRecent(s));
+        else if (s.type === 'followedUps') all.push(...await srcFollowedUps(s));
+        else if (s.type === 'expandFollowed') all.push(...await srcExpandFollowed(s));
         else if (s.type === 'expand') all.push(...await srcExpand(s));
         else if (s.type === 'related') all.push(...await srcRelated(s));
       } catch (e) { console.warn('[bcf] source failed', s, e); }
@@ -624,14 +903,29 @@
     const favRate = (it.fav || 0) / v;
     const likeRate = (it.like || 0) / v;
     const base = coinRate * 100 + favRate * 12 + likeRate * 3;
-    // 来自"看完的长视频"这个锚的，按其权重(seedW)加成——他要的是长视频那种质量
+    // 来自"看完的长视频"这个锚的，按其权重(seedW)加成——长视频的质量信号更可信
     return base * (1 + 0.35 * ((it.seedW || 1) - 1));
+  }
+
+  // 密度分：给拿不到投币/收藏的那类条目用（关注 UP 的投稿只有弹幕和评论）。
+  // 弹幕和评论都是「看完还想说两句」的行为，比播放量实在；再按片长加成——
+  // 长片能把人留住的，本身就说明内容撑得住。
+  function densityScore(it) {
+    const v = it.view || 0;
+    if (v < 5000) return -1;                         // 样本太小，噪声大
+    const dmRate = (it.danmaku || 0) / v;
+    const cmRate = (it.comment || 0) / v;
+    const base = dmRate * 300 + cmRate * 200;
+    // 10 分钟 ≈ 1 分，40 分钟 ≈ 1.6 分，2 小时 ≈ 2.3 分
+    const durBoost = 1 + Math.log2(Math.max(it.dur || 60, 60) / 600) * 0.35;
+    return base * Math.max(durBoost, 0.7);
   }
 
   function sortItems(items, mode) {
     const a = items.slice();
     if (mode === 'newest') a.sort((x, y) => (y.pubdate || 0) - (x.pubdate || 0));
     else if (mode === 'hot') a.sort((x, y) => (y.view || 0) - (x.view || 0));
+    else if (mode === 'density') a.sort((x, y) => densityScore(y) - densityScore(x));
     else if (mode === 'quality') a.sort((x, y) => qualityScore(y) - qualityScore(x));
     return a;
   }

@@ -43,11 +43,12 @@ A pure-JS md5 inlined in the userscript produces byte-identical output to `node:
 | Favorite folders | `GET /x/v3/fav/folder/created/list-all?up_mid=<mid>` | `data.list[]` with folder `id`, `title`, `media_count` |
 | Folder contents | `GET /x/v3/fav/resource/list?media_id=<id>&pn=&ps=20&platform=web` | `data.medias[]`; keep `type === 2` (video); `data.has_more` |
 | Related videos | `GET /x/web-interface/archive/related?bvid=<bv>` | `data[]`; the expansion graph; carries full `stat` |
-| Per-UP uploads | `GET /x/space/wbi/arc/search?mid=&ps=&pn=&order=pubdate` | WBI-signed; `data.list.vlist[]`; **browser-only (412 elsewhere)** |
+| Follow activity feed | `GET /x/polymer/web-dynamic/v1/feed/all?type=video&page=` | one paginated call covers *all* follows with their latest uploads; `data.items[].modules.module_dynamic.major.archive` (`bvid/title/duration_text/pubdate/stat.play`) + `module_author.name/mid`; needs login; ~20/page |
+| Per-UP uploads | `GET /x/space/wbi/arc/search?mid=&ps=&pn=&order=pubdate` | WBI-signed; `data.list.vlist[]`; **browser-only (412 elsewhere)**; carries `play`/`video_review`(danmaku)/`comment` only — **no coin or favorite**, so it cannot feed an interaction-density score |
+| Follow list | `GET /x/relation/followings?vmid=<mid>&pn=&ps=50&order=desc&order_type=attention` | needs login; used to draw a sample of accounts rather than to query each one |
 | Keyword search | `GET /x/web-interface/wbi/search/type?keyword=&search_type=video` | WBI-signed; precise only with a narrow keyword |
 | Ranking by partition | `GET /x/web-interface/ranking/v2?rid=<rid>` | `rid=0` full site, `rid=3` music, `rid=36` 社科·法律·心理; some dimension ids return `-352` (risk control) — treat per-dimension ranking as best-effort; items carry `tname` |
 | Video tags | `GET /x/tag/archive/tags?bvid=<bv>` | real topic labels — use these instead of guessing from the title |
-| Follows | `GET /x/relation/followings?vmid=<mid>` | the "today/new" feed source |
 
 ## Hard caps and unreachable data
 
@@ -66,6 +67,8 @@ A pure-JS md5 inlined in the userscript produces byte-identical output to `node:
 
 - Bilibili risk-control returns HTTP 412 when a non-browser client requests too fast. Pace requests around 500 ms apart.
 - From inside the browser, bursts are tolerated far better but still fail intermittently: several consecutive calls can throw a plain `TypeError: Failed to fetch` with no HTTP status. Treat every request as fallible — one shared wrapper with backoff retry, and do not cache a partial result as if it were complete.
+- **`space/wbi/arc/search` is the touchiest endpoint.** A dozen consecutive calls in the browser returns an HTML intercept page instead of JSON (first character `<`), and other times a JSON body with a non-zero `code` (`-352` / `-412` / `-509`) and an empty `vlist`. Both mean "throttled", not "no uploads". Detect the HTML case and give up immediately rather than retrying into a deeper block; detect the `code` case and stop the whole run. This is why the long-video feed reads the follow activity feed instead of querying accounts one at a time.
+- `space/wbi/arc/search` works **without login** from a signed (WBI) anonymous request; only the follow list, favorites, and watch history require the session. The bottleneck on the per-account path is risk control, not authentication.
 
 ## Response shapes gotchas
 
