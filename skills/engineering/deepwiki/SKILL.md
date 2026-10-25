@@ -12,34 +12,22 @@ description: >-
 # DeepWiki
 
 Query the [DeepWiki](https://deepwiki.com) API via JSON-RPC over HTTP.
-No MCP client needed — just a single Python script with stdlib.
-
-## Architecture
-
-```
-scripts/
-├── deepwiki      # Python CLI (stdlib only: json, urllib)
-└── deepwiki.sh   # Bash wrapper → delegates to deepwiki
-```
-
-The heavy lifting (JSON-RPC construction, SSE parsing, proxy fallback, error handling)
-is all in `deepwiki`. The shell wrapper just resolves the script directory and `exec`s
-into Python — no inline JSON escaping, no sed/pipe chains.
+No MCP client needed — a single Python script using only the stdlib.
 
 ## Commands
 
 ```bash
 # List documentation topics for a repo
-scripts/deepwiki.sh structure <owner/repo>
+scripts/deepwiki structure <owner/repo>
 
-# View full documentation
-scripts/deepwiki.sh contents <owner/repo>
+# View full documentation (large — redirect to a file)
+scripts/deepwiki contents <owner/repo>
 
 # Ask a question about a repo
-scripts/deepwiki.sh ask <owner/repo> "question"
+scripts/deepwiki ask <owner/repo> "question"
 ```
 
-Aliases: `s` `c` `a`. `scripts/deepwiki` also works directly.
+Aliases: `s` `c` `a`.
 
 ## When to Use
 
@@ -52,3 +40,8 @@ Aliases: `s` `c` `a`. `scripts/deepwiki` also works directly.
 
 - Free, no authentication required. Public GitHub repositories only.
 - The `DEEPWIKI_ENDPOINT` env var can override the default API URL.
+- Exit status is 0 only on success; any error prints to stderr and exits 1.
+- A repo DeepWiki has not indexed fails with a "Visit https://deepwiki.com/… to
+  index it" message — open that URL to request indexing, then retry.
+- `contents` returns the full wiki (hundreds of KB even for small repos).
+  Prefer `structure` plus targeted `ask`; redirect `contents` to a file.

@@ -10,6 +10,8 @@ Aliases: s=structure, c=contents, a=ask
 
 Environment:
   DEEPWIKI_ENDPOINT   Override API URL (default: https://mcp.deepwiki.com/mcp)
+
+Exit status: 0 on success; any failure prints to stderr and exits 1.
 """
 from __future__ import annotations
 
@@ -20,6 +22,26 @@ import urllib.error
 import urllib.request
 
 ENDPOINT = os.environ.get("DEEPWIKI_ENDPOINT", "https://mcp.deepwiki.com/mcp")
+
+
+def emit(payload: dict) -> None:
+    """Print a JSON-RPC response payload; exit 1 on error results."""
+    if "error" in payload:
+        msg = payload["error"].get("message", "unknown error")
+        print(f"Error: {msg}", file=sys.stderr)
+        sys.exit(1)
+
+    result = payload.get("result", {})
+    if result.get("isError"):
+        texts = [item.get("text", "") for item in result.get("content", [])
+                 if item.get("type") == "text"]
+        detail = " ".join(texts).strip() or "tool call failed"
+        print(f"Error: {detail}", file=sys.stderr)
+        sys.exit(1)
+
+    for item in result.get("content", []):
+        if item.get("type") == "text":
+            print(item["text"])
 
 
 def call_tool(tool_name: str, arguments: dict) -> None:
@@ -48,6 +70,9 @@ def call_tool(tool_name: str, arguments: dict) -> None:
                 resp = urllib.request.urlopen(req, timeout=30)
             raw = resp.read().decode("utf-8")
             break
+        except urllib.error.HTTPError as exc:
+            print(f"Error: DeepWiki returned HTTP {exc.code} {exc.reason}", file=sys.stderr)
+            sys.exit(1)
         except (urllib.error.URLError, OSError) as exc:
             last_exc = exc
             continue
@@ -56,39 +81,26 @@ def call_tool(tool_name: str, arguments: dict) -> None:
         print(f"Error: DeepWiki unreachable — {last_exc}", file=sys.stderr)
         sys.exit(1)
 
-    # Parse SSE: extract the first complete JSON payload from data: lines
+    # SSE: use the first data: line carrying a JSON-RPC result or error,
+    # skipping notification events that may precede it.
     for line in raw.splitlines():
-        if line.startswith("data: "):
-            try:
-                payload = json.loads(line[6:])
-            except json.JSONDecodeError:
-                continue
-
-            if "error" in payload:
-                msg = payload["error"].get("message", "unknown error")
-                print(f"Error: {msg}", file=sys.stderr)
-                sys.exit(1)
-
-            for item in payload.get("result", {}).get("content", []):
-                if item.get("type") == "text":
-                    print(item["text"])
+        if not line.startswith("data: "):
+            continue
+        try:
+            payload = json.loads(line[6:])
+        except json.JSONDecodeError:
+            continue
+        if "result" in payload or "error" in payload:
+            emit(payload)
             return
 
-    # No SSE envelope found; try parsing raw response as JSON
+    # No SSE envelope found; try parsing the raw response as JSON
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError:
         print("Error: unexpected response format from DeepWiki", file=sys.stderr)
         sys.exit(1)
-
-    if "error" in payload:
-        msg = payload["error"].get("message", "unknown error")
-        print(f"Error: {msg}", file=sys.stderr)
-        sys.exit(1)
-
-    for item in payload.get("result", {}).get("content", []):
-        if item.get("type") == "text":
-            print(item["text"])
+    emit(payload)
 
 
 def main() -> None:
@@ -111,7 +123,7 @@ def main() -> None:
         if len(sys.argv) < 4:
             print("Error: question required", file=sys.stderr)
             sys.exit(1)
-        call_tool("ask_question", {"repoName": repo, "question": sys.argv[3]})
+        call_tool("ask_wiki_question", {"repoName": repo, "question": sys.argv[3]})
     else:
         print(f"Unknown command: {cmd}", file=sys.stderr)
         sys.exit(1)
