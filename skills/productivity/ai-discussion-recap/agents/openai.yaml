@@ -1,0 +1,3 @@
+interface:
+  display_name: "AI Discussion Recap"
+  short_description: "Recap useful recent AI sessions"

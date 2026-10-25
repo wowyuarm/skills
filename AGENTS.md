@@ -22,8 +22,9 @@ Per-skill layout:
 - `*/references/` — stable supporting docs
 - `*/scripts/` — deterministic helper scripts
 - `*/assets/` — templates or static files
-- `*/agents/` — optional harness-specific metadata
-- `scripts/validate_skills.py` — repo-wide validator
+- `*/agents/` — harness-specific metadata (`openai.yaml`, required; see Architecture Notes)
+- `scripts/validate_skills.py` — aggregate runner for the checks in `scripts/checks/`
+- `scripts/checks/` — atomic checks, one concern per script, each runnable on its own
 
 Current skills:
 
@@ -60,16 +61,16 @@ A group may mix both kinds. Group READMEs and the top-level README group entries
 
 ## Mechanical Gating
 
-The validator enforces structure so it does not depend on discipline alone. It checks:
+Structure is enforced by `python3 scripts/validate_skills.py`, which runs every atomic check under `scripts/checks/` (each `check_*.py` is independently runnable and owns one concern; shared discovery and parsing live in `scripts/checks/_common.py`). The checks verify:
 
 - Every `skills/*/*/SKILL.md` has valid frontmatter with `name` and `description`; `name` matches the directory name.
 - Every skill under `skills/` appears in its group README and the top-level README, and every indexed link resolves to a real skill.
 - Skills listed under a `User-invoked` heading have `disable-model-invocation: true`; skills under `Model-invoked` do not.
-- `agents/*.yaml` files, when present, parse as YAML mappings (they are optional; see below).
+- Every skill has `agents/openai.yaml` with non-empty `interface.display_name` and `interface.short_description`.
 - Shell scripts under `*/scripts/` parse under `bash -n`.
 - Runtime state files (`*/references/current-state.local.md`) are flagged with a warning.
 
-Run the validator after any change to `SKILL.md` files, layout, indexes, or scripts.
+Run the validator after any change to `SKILL.md` files, layout, indexes, or scripts. Add a new gate as a new `check_*.py` script; the runner picks it up automatically.
 
 ## Code Style & Conventions
 
@@ -77,13 +78,13 @@ Run the validator after any change to `SKILL.md` files, layout, indexes, or scri
 - Match each skill directory name to the frontmatter `name` in `SKILL.md`.
 - Put durable guidance in `references/` or sibling reference files; do not bloat `SKILL.md` with large supporting docs.
 - Put repeatable helper logic in `scripts/`.
-- Prefer harness-agnostic skill structure unless a harness-specific file is clearly needed.
+- Keep skill structure harness-agnostic apart from the standard `agents/openai.yaml` metadata file.
 
 ## Architecture Notes
 
 - The validator discovers skills by scanning `skills/*/*/SKILL.md`.
 - The repository is meant to stay generally reusable across Pi, Claude Code, Codex-style harnesses, and similar environments.
-- `agents/` metadata (e.g. `skills/engineering/deepwiki/agents/openai.yaml`) is optional. It exists only when a target harness needs what the frontmatter cannot express — for example Codex/OpenAI uses it for `display_name` and `short_description`, and for its own user-invocation policy. Do not add one unless a concrete harness need appears; the validator only checks files that exist.
+- `agents/openai.yaml` carries the metadata Codex/OpenAI-style harnesses read: `interface.display_name` and `interface.short_description` are required for every skill; a User-invoked skill additionally sets `policy.allow_implicit_invocation: false`; extra keys such as `deepwiki`'s `default_prompt` are allowed. Claude Code and Pi ignore this file and read only the frontmatter.
 - `proxy-vps-ops` separates stable guidance from runtime state:
   - tracked: `skills/productivity/proxy-vps-ops/references/current-state.template.md`
   - local only: `skills/productivity/proxy-vps-ops/references/current-state.local.md`
