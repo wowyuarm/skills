@@ -52,6 +52,7 @@ Only finished work records are committed; in-progress ones are not.
 - **`active/` and `local/` stay untracked** (see the root `.gitignore`). Active files hold live notes that change many times a day, and their conclusions are not yet cleaned up; committing them freezes half-formed state and leaks material into history that was never curated.
 - **A work record is cleaned up, archived, and only then committed** — normally amended into the commit holding the substantive work it belongs to, so the record lands with the change it explains rather than as a standalone "docs" commit.
 - A file in `active/` is not durable: once the work item closes, its files move to `archive/`. Links pointing into `active/` are not safe to depend on — point at `archive/` or at maintained docs instead. `README.md` in this directory may name active items, as prose rather than as links.
+- A fresh clone contains neither `active/` nor `local/` (empty directories are not tracked); recreate them when work starts.
 
 ## Directory index
 

@@ -22,6 +22,7 @@ The pattern is proven in real agent-driven repositories (Loom, dsh-agent-team): 
 - Infer the stack from real files (`package.json`, `Cargo.toml`, `pyproject.toml`, `go.mod`, `Makefile`, CI config); prefer exact commands the repo already uses over ecosystem defaults.
 - Extract only durable contributor knowledge: purpose and scope, top-level directory responsibilities, build/test/lint/run commands, conventions, boundaries, secret-handling rules.
 - If the repo does not expose a fact, write `> TODO:` — never invent commands, architecture, or policies.
+- **Greenfield repos**: a new or empty repository has little to extract. Take facts from the session's plan and the user — stack choice, commands, boundaries — and write them as chosen conventions, `> TODO:` whatever is not yet decided. The root file is then a statement of intent the code grows into, not a report of what exists; expect a tightening pass once the stack actually lands.
 
 ## Write the root AGENTS.md
 
@@ -33,11 +34,13 @@ Short by design. Five parts, in this order:
 4. **Pointers** — one line each for `docs/AGENTS.md` (if present) and `.scratch/AGENTS.md`.
 5. Nothing else. Long structure maps, per-command detail, and research history belong in `docs/` and `.scratch/`, not in the file every session loads.
 
-Write it in the repository's dominant documentation language (translate the headings; keep technical terms as-is).
+Write it in the repository's dominant documentation language (translate the headings; keep technical terms as-is). A greenfield repo has no dominant language yet — ask, or default to the conversation's language.
 
 ## Create the .scratch work area
 
-Copy `assets/<lang>/scratch-AGENTS.md` to `.scratch/AGENTS.md` and `assets/<lang>/scratch-README.md` to `.scratch/README.md`, adapting the prose the way you would adapt any boilerplate: drop what does not apply, keep the discipline. The templates define the work-item structure (`active/<work>/` with a five-item continuation README, `DESIGN.md`, `issues/NN-<slug>.md` tickets), ticket discipline (vertical slices, self-contained, frontier workflow), the closing lifecycle, and git tracking. Do not rewrite these rules per repo unless the repo genuinely works differently — their value is being the same everywhere.
+Copy `assets/scratch-AGENTS.md` to `.scratch/AGENTS.md` and `assets/scratch-README.md` to `.scratch/README.md`, adapting the prose the way you would adapt any boilerplate: drop what does not apply, keep the discipline. The templates define the work-item structure (`active/<work>/` with a five-item continuation README, `DESIGN.md`, `issues/NN-<slug>.md` tickets), ticket discipline (vertical slices, self-contained, frontier workflow), the closing lifecycle, and git tracking. Do not rewrite these rules per repo unless the repo genuinely works differently — their value is being the same everywhere. Templates are English; when the repository's documentation language is not, translate the prose while keeping the structure, headings order, and technical terms.
+
+On a greenfield repo, the design work that follows initialization starts as an `active/<work>/` item, not in `docs/` — until source lands, `active/` is the primary design authority (the template says so).
 
 Add to `.gitignore` (create the entries; keep the file's existing content):
 
@@ -52,12 +55,14 @@ Create the directories `active/` and `local/` (empty; `local/` is ignored anyway
 
 Skip it for small repos — a root file plus `.scratch/` is enough, and an empty routing index pointing at nothing is worse than no index. Create it when the repo already has (or will soon grow) multiple maintained docs — architecture pages, runbooks, domain models:
 
-- `assets/<lang>/docs-README.md` → `docs/README.md`: task-based routing table ("you want to do X → read Y") plus a fact-ownership table (which document owns which class of fact). Fill rows from the repo's real documents; two honest rows beat ten stub rows.
-- `assets/<lang>/docs-AGENTS.md` → `docs/AGENTS.md`: maintenance discipline — one fact one home, a change that invalidates a documented fact updates the owning document in the same change, uncertain facts as `> TODO:`, no empty shells for modules that do not exist.
+- `assets/docs-README.md` → `docs/README.md`: task-based routing table ("you want to do X → read Y") plus a fact-ownership table (which document owns which class of fact). Fill rows from the repo's real documents; two honest rows beat ten stub rows.
+- `assets/docs-AGENTS.md` → `docs/AGENTS.md`: maintenance discipline — one fact one home, a change that invalidates a documented fact updates the owning document in the same change, uncertain facts as `> TODO:`, no empty shells for modules that do not exist.
 
-Do not pre-create empty subsystem pages. The skeleton is governance, not filler.
+Do not pre-create empty subsystem pages. The skeleton is governance, not filler. A terminology or domain page is typically the first real page once terms stabilize — add it then, not empty.
 
-## Retrofit an existing AGENTS.md
+## Re-runs and retrofitting
+
+Re-running on an already-initialized repository adds the missing pieces — most often the `docs/` skeleton once the repo grows into needing one — and never regenerates or overwrites files that already exist.
 
 Never overwrite an existing root `AGENTS.md`. When one exists, read it, separate always-on rules from long-form explanation, and propose the restructure: rules stay in the root file, explanation moves to `docs/` pages (create the skeleton in the same pass if it is missing), work-history notes move to `.scratch/`. Apply it only with the user's go-ahead, since the existing file may be load-bearing for other tooling.
 
@@ -65,6 +70,7 @@ Never overwrite an existing root `AGENTS.md`. When one exists, read it, separate
 
 - Every command in the generated files comes from the repo or is marked `> TODO:`.
 - Root `AGENTS.md` fits on one screen and contains no content that belongs in `docs/` or `.scratch/`.
+- The `.gitignore` entries are committed together with the skeleton, before any `active/` work could leak into a commit.
 - `.scratch/AGENTS.md` and `.scratch/README.md` exist; `.gitignore` covers `active/` and `local/`.
 - If `docs/` was created, every routing row points at a file that exists.
 - All generated files use the repository's dominant documentation language consistently.
