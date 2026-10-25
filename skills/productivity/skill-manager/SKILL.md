@@ -31,13 +31,15 @@ description: What this skill does and when to use it.
 ---
 ```
 
+Declare the invocation kind in frontmatter: omit `disable-model-invocation` for model-invoked, or set it to `true` for user-invoked (see [Skill Mechanics](references/skill-mechanics.md)).
+
 Read an offered skill before adopting it. Do not write harness-specific install paths into a skill body that must stay portable; state location conventions only when the skill is inherently about installation.
 
 ## Write
 
 Describe the method the next Agent needs, not general advice it already knows. Make the description name the real triggers. Keep the main instructions short. Put substantial scripts, references, or templates beside `SKILL.md` only when they are repeatedly useful.
 
-Use clear completion checks for fragile work. For a substantial new or revised skill, read [Writing Great Skills](references/writing-great-skills.md).
+Use clear completion checks for fragile work. For a substantial new or revised skill, read [Writing Great Skills](references/writing-great-skills.md) for the writing methodology (the two loads, pointers, information hierarchy, leading words, pruning) and [Skill Mechanics](references/skill-mechanics.md) for frontmatter, the invocation choice, splitting, and this repository's index rules.
 
 ## Review
 
