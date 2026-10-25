@@ -15,7 +15,7 @@ This is a personalization-by-rules method, not a recommender-model method. The u
 
 A standalone caller has two problems that a userscript does not have at all:
 - It needs the user's login cookie, which you must obtain, store, and keep fresh.
-- It is rate-limited as an ordinary non-browser client (Bilibili returns 412 for some endpoints outside a browser, e.g. `space/wbi/arc/search`).
+- It trips Bilibili risk control much sooner: a plain non-browser client gets HTTP 412 or a risk-control `code` on burst-prone endpoints (e.g. `space/wbi/arc/search`) unless carefully paced, and those failures masquerade as "no data".
 
 Inside the user's own browser, both vanish: the session is already there, and requests come from the real page origin with the real cookies. CORS permits it — `api.bilibili.com` answers `Origin: https://www.bilibili.com` with `access-control-allow-origin: https://www.bilibili.com` and credentials allowed.
 
@@ -61,11 +61,19 @@ Caching is the counterweight: cache seeds for ~6 h and each seed's related list 
 
 - **The coin list caps at 3 items, always.** This is Bilibili's limit, not a bug and not fixable. Say so up front; the practical remedy is to tell the user to favorite/coin good videos to thicken the signal. The like list caps around 20; watch history reaches 1000+ and is the real well.
 - **Do not over-promise a new-video feed from seeds.** Anchoring on old approvals yields old-adjacent videos. A separate "today" feed from follows is the honest place for new content; seeds are for quality.
-- **Only ranking dimension `rid=0` is reliably reachable; some other dimension ids return error `-352` (risk control) outside the browser.** `rid=3`, `36` also returned data in testing, but treat per-dimension ranking as unreliable and prefer sampling the full ranking plus filtering when a broad discovery pool is wanted.
+- **Only ranking dimension `rid=0` is reliably reachable; some other dimension ids return error `-352` (risk control).** `rid=3`, `36` also returned data in testing, but treat per-dimension ranking as unreliable and prefer sampling the full ranking plus filtering when a broad discovery pool is wanted.
 
 ## Assets and scripts
 
 - `assets/bili-custom-feeds.user.js` — a **generic template**, not any one person's config. It ships with example feeds (`投币同款` / `长片` / `深挖` / `出圈` / `今天` / `指定UP`), an empty `PINNED_UPS` list, and neutral keywords the user replaces; every source type and both ranking modes are exercised by that set. Keep it that way: never commit a copy carrying a real person's feeds, UP names, account ids, or filters — this repo is published, and a personal config is not a template.
-- `scripts/browser-test.mjs` — drive headless Chrome + CDP to inject the userscript against a real session and confirm each feed renders. Takes a feed index; `BILI_SESSDATA_FILE` must point at a SESSDATA file. It waits for the opening feed to settle before switching tabs — otherwise the slower first feed lands last and overwrites the grid, which once looked like a broken feed. Requires `google-chrome`.
+- `scripts/browser-test.mjs` — drive headless Chrome + CDP to inject the userscript against a real session and confirm a feed renders. Takes a feed index; `BILI_SESSDATA_FILE` must point at a SESSDATA file; needs `google-chrome` and node >= 22. Exits 0 only if the userscript injected, the panel booted, and the target feed settled with at least one card; a settled-but-empty grid exits 1 — empty is indistinguishable from blocked, so it is a failure until eyeballed and overridden with `BCF_ALLOW_EMPTY=1`. It waits for the opening feed to settle before switching tabs — otherwise the slower first feed lands last and overwrites the grid, which once looked like a broken feed.
 - `scripts/bili_dist.py` — one-off diagnostic: pull a real recommendation feed and print the distribution (UP frequency, duration, age, follow ratio, topic tags). Needs a cookie file.
 - `references/api-notes.md` — verified endpoints, signing, capabilities, and hard caps. Read before touching the data layer.
+
+## Install and verify
+
+1. In Tampermonkey, create a new script, paste `assets/bili-custom-feeds.user.js`, save.
+2. Open `https://www.bilibili.com/` logged in and click the floating button: the panel must open and the first feed must render cards.
+3. Verify every feed index with `node scripts/browser-test.mjs <feedIndex>`. Exit 0 means the feed rendered; an empty grid plus blocked console signatures is a fetch failure — fix it, do not dismiss it.
+
+Done means: every feed renders cards (or a verified-empty note via `BCF_ALLOW_EMPTY=1`), and the console shows no risk-control blocks.

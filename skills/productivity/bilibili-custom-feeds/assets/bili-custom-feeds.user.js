@@ -182,6 +182,15 @@
     throw lastErr;
   }
 
+  // 统一 code 检查：B站的失败经常不是抛异常，而是 HTTP 200 + code!=0 + 空 data。
+  // 不查 code 就会把「被风控/没登录」当成「这里没内容」——静默出错最难查。
+  function ensureOk(d, what) {
+    if (d && d.code === 0) return d;
+    const c = d ? d.code : 'no-json';
+    const isRisk = c === -352 || c === -412 || c === -509;
+    throw new Error((isRisk ? 'BLOCKED' : 'api') + '(code ' + c + ') ' + what + ' ' + ((d && d.message) || ''));
+  }
+
   async function apiGet(url, params) {
     const u = new URL(url);
     if (params) for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
@@ -300,7 +309,7 @@
     const out = [];
     for (const rid of rids) {
       try {
-        const d = await apiGet('https://api.bilibili.com/x/web-interface/ranking/v2', { rid, type: 'all' });
+        const d = ensureOk(await apiGet('https://api.bilibili.com/x/web-interface/ranking/v2', { rid, type: 'all' }), 'ranking rid=' + rid);
         for (const v of ((d.data && d.data.list) || [])) {
           out.push(norm({
             bvid: v.bvid, title: v.title, up: v.owner && v.owner.name, upMid: v.owner && v.owner.mid,
@@ -315,16 +324,18 @@
     return out;
   }
 
-  // UP 名 → mid 缓存（localStorage，避免每次都搜索）
-  const MID_KEY = 'bcf_mids';
+  // UP 名 → mid 缓存（localStorage，避免每次都搜索）。带 7 天过期——UP 改名/换号后不至于永远错下去。
+  const MID_KEY = 'bcf_mids_v2';
+  const MID_TTL = 7 * 86400e3;
   function midCache() { try { return JSON.parse(localStorage.getItem(MID_KEY) || '{}'); } catch { return {}; } }
   function saveMid(name, mid) {
-    try { const c = midCache(); c[name] = mid; localStorage.setItem(MID_KEY, JSON.stringify(c)); } catch {}
+    try { const c = midCache(); c[name] = { m: mid, t: Date.now() + MID_TTL }; localStorage.setItem(MID_KEY, JSON.stringify(c)); } catch {}
   }
   async function resolveMid(name) {
     if (/^\d+$/.test(name)) return +name;          // 直接写 mid 也行
     const c = midCache();
-    if (c[name]) return c[name];
+    const hit = c[name];
+    if (hit && hit.t > Date.now()) return hit.m;
     const d = await wbiGet('/x/web-interface/wbi/search/type',
       { search_type: 'bili_user', keyword: name, page: 1, page_size: 10 });
     const res = (d.data && d.data.result) || [];
@@ -361,10 +372,7 @@
     const d = await wbiGet('/x/space/wbi/arc/search', { mid, ps, pn, order: order || 'pubdate' });
     // 必须看 code：被风控时它返回 -352 和一个空的 data，不是抛异常。
     // 不看的话就会把「被拦了」当成「这个人最近没发长片」——静默出错最难查。
-    if (d.code !== 0) {
-      const isRisk = d.code === -352 || d.code === -412 || d.code === -509;
-      throw new Error((isRisk ? 'BLOCKED(code ' : 'code ') + d.code + ') ' + (d.message || ''));
-    }
+    ensureOk(d, 'up videos mid=' + mid);
     const vl = (((d.data || {}).list) || {}).vlist || [];
     if (vl.length) upvPut(mid, vl);           // 只有真拿到东西才缓存，别把失败也记进去
     return vl;
@@ -420,9 +428,9 @@
       try {
         const uid = await myMid();
         const list = [];
-        for (let pn = 1; pn <= 6; pn++) {                  // 117 个关注，3 页够；多留几页
-          const d = await apiGet('https://api.bilibili.com/x/relation/followings',
-            { vmid: uid, pn, ps: 50, order: 'desc', order_type: 'attention' });
+        for (let pn = 1; pn <= 6; pn++) {                  // 关注多时 3 页就够；多留几页
+          const d = ensureOk(await apiGet('https://api.bilibili.com/x/relation/followings',
+            { vmid: uid, pn, ps: 50, order: 'desc', order_type: 'attention' }), 'followings');
           const l = ((d.data) || {}).list || [];
           for (const u of l) if (u.mid && u.uname) list.push({ mid: u.mid, uname: u.uname });
           if (l.length < 50) break;
@@ -441,7 +449,7 @@
   }
 
   // 抽签：从关注里抽 n 个人，外加 PINNED_UPS 里点名的那几个（每轮必查）。
-  // 为什么要抽而不是全查：117 个人挨个查会发 117 次请求，B站很快给 -352 风控。
+  // 为什么要抽而不是全查：关注列表挨个查就是每人一次请求，上百次连发 B站很快给 -352 风控。
   // 抽到的这把人存进 localStorage 记 6 小时，所以同一批不会每次刷新都变。
   const PICK_KEY = 'bcf_pick';
   function pickCache() {
@@ -475,7 +483,7 @@
   }
 
   // 「长片」：从关注动态流里只要够长的。
-  // 为什么不用「按人查投稿」：117 个关注要发 117 次请求，B站立刻风控（实测 -352 / 拦截页）。
+  // 为什么不用「按人查投稿」：全量关注挨个查要发上百次请求，B站立刻风控（实测 -352 / 拦截页）。
   // 动态流一次请求就覆盖全部关注，而且它是「最新投稿」，正好是这个流要的东西。
   // 动态流要登录；拿不到时（没登录）退回按人查点名的那几个——那条路慢但至少不是空的。
   async function srcFollowedUps(src) {
@@ -495,9 +503,9 @@
     const ups = await sampledUps(FOLLOWED_SAMPLE);
     let got = 0, blocked = false;
     for (const midOrName of ups) {
-      const mid = await resolveMid(midOrName);
-      if (!mid) continue;
       try {
+        const mid = await resolveMid(midOrName);
+        if (!mid) continue;
         const vl = await fetchUpVideos(mid, 30, 1, 'pubdate');
         got += vl.length;
         for (const v of vl) {
@@ -621,27 +629,27 @@
     const uid = await myMid();
     // 我投币的（B站上限 3 条，就这么多）—— 质量信号最强
     try {
-      const d = await apiGet('https://api.bilibili.com/x/space/coin/video', { vmid: uid, pn: 1, ps: 30 });
+      const d = ensureOk(await apiGet('https://api.bilibili.com/x/space/coin/video', { vmid: uid, pn: 1, ps: 30 }), 'coins');
       for (const v of ((d.data) || [])) seeds.coins.push({ bvid: v.bvid, title: v.title });
-    } catch (e) { fails++; console.warn('[bcf] 取投币失败', e); }
+    } catch (e) { fails++; console.warn('[bcf] 取投币失败', e.message || e); }
     // 我点赞的（上限约 20 条）—— 次强信号
     try {
       for (let pn = 1; pn <= 2; pn++) {
-        const d = await apiGet('https://api.bilibili.com/x/space/like/video', { vmid: uid, pn, ps: 30 });
+        const d = ensureOk(await apiGet('https://api.bilibili.com/x/space/like/video', { vmid: uid, pn, ps: 30 }), 'likes');
         const lst = ((d.data) || {}).list || [];
         for (const v of lst) if (v.bvid) seeds.likes.push({ bvid: v.bvid, title: v.title });
         if (lst.length < 30) break;
         await sleep(400);
       }
-    } catch (e) { fails++; console.warn('[bcf] 取点赞失败', e); }
+    } catch (e) { fails++; console.warn('[bcf] 取点赞失败', e.message || e); }
     // 我收藏的（分页取，取前几页就够当种子）
     try {
-      const fl = await apiGet('https://api.bilibili.com/x/v3/fav/folder/created/list-all', { up_mid: uid });
+      const fl = ensureOk(await apiGet('https://api.bilibili.com/x/v3/fav/folder/created/list-all', { up_mid: uid }), 'fav folders');
       const folders = ((fl.data) || {}).list || [];
       for (const f of folders) {
         for (let pn = 1; pn <= 2; pn++) {
-          const d = await apiGet('https://api.bilibili.com/x/v3/fav/resource/list',
-            { media_id: f.id, pn, ps: 20, platform: 'web' });
+          const d = ensureOk(await apiGet('https://api.bilibili.com/x/v3/fav/resource/list',
+            { media_id: f.id, pn, ps: 20, platform: 'web' }), 'fav res ' + f.id);
           const medias = (((d.data) || {}).medias) || [];
           for (const m of medias) if (m.bvid && m.type === 2) seeds.favs.push({ bvid: m.bvid, title: m.title });
           if (!((d.data || {}).has_more)) break;
@@ -650,14 +658,14 @@
         await sleep(300);
         if (seeds.favs.length > 120) break;
       }
-    } catch (e) { fails++; console.warn('[bcf] 取收藏失败', e); }
+    } catch (e) { fails++; console.warn('[bcf] 取收藏失败', e.message || e); }
     // 我看完的（观看历史里 progress/duration >= 85%）—— 这是最富的一口井：
     // 历史能翻 1000+ 条，但"点开就走"的很多，只有"看完"才代表真认可。
     try {
       let maxv = 0, viewAt = 0;
       for (let i = 0; i < 12; i++) {                 // 12 页 × 30 ≈ 360 条，够抽种子
-        const q = await wbiGet('/x/web-interface/history/cursor',
-          { max: maxv, view_at: viewAt, business: '', ps: 30 });
+        const q = ensureOk(await wbiGet('/x/web-interface/history/cursor',
+          { max: maxv, view_at: viewAt, business: '', ps: 30 }), 'history');
         const lst = ((q.data || {}).list) || [];
         if (!lst.length) break;
         for (const h of lst) {
@@ -682,7 +690,7 @@
         if (!maxv) break;
         await sleep(500);
       }
-    } catch (e) { fails++; console.warn('[bcf] 取观看历史失败', e); }
+    } catch (e) { fails++; console.warn('[bcf] 取观看历史失败', e.message || e); }
     _mySeeds = seeds;
     saveSeedsCache(seeds, fails === 0);
     console.log('[bcf] 种子：投币', seeds.coins.length, '点赞', seeds.likes.length,
@@ -693,7 +701,8 @@
   let _myMid = null;
   async function myMid() {
     if (_myMid) return _myMid;
-    const d = await apiGet('https://api.bilibili.com/x/web-interface/nav');
+    const d = ensureOk(await apiGet('https://api.bilibili.com/x/web-interface/nav'), 'nav');
+    if (!d.data || !d.data.mid) throw new Error('nav returned no mid (not logged in?)');
     _myMid = d.data.mid;
     return _myMid;
   }
