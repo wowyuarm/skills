@@ -43,7 +43,7 @@ Keep the final synthesis in the main agent. Use the subagent for discovery and t
 If the user is asking for "recent discussions", "what did we conclude recently", "what project principles were settled", or similar, start with:
 
 ```bash
-python3 ai-discussion-recap/scripts/extract_ai_discussions.py \
+python3 skills/productivity/ai-discussion-recap/scripts/extract_ai_discussions.py \
   --project /home/yu/projects/HaL \
   --days 14 \
   --max-sessions 8
