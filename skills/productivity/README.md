@@ -7,6 +7,7 @@ Entries are grouped by how they are reached: **User-invoked** skills fire only w
 ## User-invoked
 
 - [`bilibili-custom-feeds`](bilibili-custom-feeds/SKILL.md) — build and tune a personal, rule-authored Bilibili feed as a Tampermonkey userscript running in your own logged-in browser
+- [`machine-identity-reset`](machine-identity-reset/SKILL.md) — reset an AI CLI or desktop app's local identity (device IDs, fingerprints, credentials) while keeping your own config
 - [`proxy-vps-ops`](proxy-vps-ops/SKILL.md) — manage the lifecycle of a self-hosted VPS used as a personal proxy node
 
 ## Model-invoked

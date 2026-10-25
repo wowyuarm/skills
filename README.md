@@ -21,6 +21,7 @@ Skills live under `skills/` in two groups: `engineering/` for daily code work an
 #### User-invoked
 
 - [`bilibili-custom-feeds`](skills/productivity/bilibili-custom-feeds/SKILL.md) — build and tune a personal, rule-authored Bilibili feed as a Tampermonkey userscript running in your own logged-in browser
+- [`machine-identity-reset`](skills/productivity/machine-identity-reset/SKILL.md) — reset an AI CLI or desktop app's local identity (device IDs, fingerprints, credentials) while keeping your own config
 - [`proxy-vps-ops`](skills/productivity/proxy-vps-ops/SKILL.md) — manage the lifecycle of a self-hosted VPS used as a personal proxy node
 
 #### Model-invoked

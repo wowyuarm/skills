@@ -33,6 +33,7 @@ Current skills:
 - `skills/engineering/repo-init/`
 - `skills/productivity/ai-discussion-recap/`
 - `skills/productivity/bilibili-custom-feeds/`
+- `skills/productivity/machine-identity-reset/`
 - `skills/productivity/proxy-vps-ops/`
 - `skills/productivity/skill-manager/`
 

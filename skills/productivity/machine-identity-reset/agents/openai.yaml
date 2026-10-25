@@ -1,0 +1,5 @@
+interface:
+  display_name: "Machine Identity Reset"
+  short_description: "Reset an app's local identity while keeping custom config"
+policy:
+  allow_implicit_invocation: false
