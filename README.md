@@ -13,6 +13,7 @@ Skills live under `skills/` in two groups: `engineering/` for daily code work an
 #### User-invoked
 
 - [`ax-init`](skills/engineering/ax-init/SKILL.md) — initialize or retrofit a repository's agent layer: short root `AGENTS.md`, `.scratch/` work area, optional `docs/` skeleton
+- [`ax-review`](skills/engineering/ax-review/SKILL.md) — audit a repository's agent experience: mechanical link/reference checks plus a simulated cold-start walk
 
 #### Model-invoked
 

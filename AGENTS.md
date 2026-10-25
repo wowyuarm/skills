@@ -31,6 +31,7 @@ Current skills:
 - `skills/engineering/codebase-ablation/`
 - `skills/engineering/deepwiki/`
 - `skills/engineering/ax-init/`
+- `skills/engineering/ax-review/`
 - `skills/productivity/ai-discussion-recap/`
 - `skills/productivity/bilibili-custom-feeds/`
 - `skills/productivity/machine-identity-reset/`
