@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# Collect Xray service, listener, firewall, and local-connectivity evidence in
+# one pass. Run from anywhere. Environment overrides:
+#   SERVICE_NAME  systemd unit to inspect      (default xray)
+#   CONFIG_PATH   server config to validate    (default /usr/local/etc/xray/config.json)
+#   XRAY_BIN      xray binary                  (default /usr/local/bin/xray)
+#   PORT          port to check in ss/connect  (default 443; use 8443 when
+#                 isolating privileged-port issues)
 set -euo pipefail
 
 SERVICE_NAME="${SERVICE_NAME:-xray}"
@@ -12,8 +19,6 @@ run() {
   echo "### $cmd"
   if sudo -n true >/dev/null 2>&1; then
     sudo bash -lc "$cmd"
-  elif [[ ${EUID:-$(id -u)} -eq 0 ]]; then
-    bash -lc "$cmd"
   else
     bash -lc "$cmd"
   fi

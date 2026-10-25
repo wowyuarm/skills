@@ -1,9 +1,25 @@
 #!/usr/bin/env bash
+# Generate fresh VLESS + REALITY materials: UUID, x25519 key pair, short ID,
+# plus the chosen serverName/dest. Output maps each value to its placeholder
+# in the Xray server config and the Mihomo client config.
+#
+# Usage: generate_reality_materials.sh [server_name [dest]]
+# Regenerating rotates the UUID and keys, which invalidates every existing
+# client — only run this when you intend to update all clients.
 set -euo pipefail
 
 XRAY_BIN="${XRAY_BIN:-/usr/local/bin/xray}"
 SERVER_NAME="${1:-www.cloudflare.com}"
 DEST="${2:-${SERVER_NAME}:443}"
+
+if [[ $# -gt 2 ]]; then
+  echo "usage: $0 [server_name [dest]]" >&2
+  exit 2
+fi
+if [[ -z "$SERVER_NAME" || "$SERVER_NAME" == -* || "$SERVER_NAME" != "${SERVER_NAME// /}" ]]; then
+  echo "invalid server_name: $SERVER_NAME" >&2
+  exit 2
+fi
 
 if [[ ! -x "$XRAY_BIN" ]]; then
   if command -v xray >/dev/null 2>&1; then

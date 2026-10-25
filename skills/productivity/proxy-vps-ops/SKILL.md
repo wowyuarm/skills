@@ -169,16 +169,7 @@ Use for:
 
 ## Core mental model
 
-Keep these layers separate:
-1. provider and route quality
-2. VPS baseline health
-3. management plane reachability
-4. proxy service process state
-5. listener state
-6. local TCP reachability on the VPS
-7. public TCP reachability from the client side
-8. protocol handshake correctness
-9. client routing, TUN, DNS, and policy behavior
+Reason by the nine layers defined in [`references/scope-and-architecture.md`](references/scope-and-architecture.md): provider route, VPS baseline, management reachability, service process, listener, local TCP, public TCP, handshake correctness, client routing.
 
 Do not skip layers. "Service active" does not prove "listener exists". "Firewall open" does not prove "process is bound". "TCP connect works" does not prove "REALITY parameters match".
 

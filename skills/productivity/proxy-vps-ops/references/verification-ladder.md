@@ -103,6 +103,28 @@ Only after the node itself is good, inspect:
 
 Question answered: is the client actually using the node as intended?
 
+## 9. Traffic actually flows
+
+Only a real proxied request proves the whole chain. A latency number in the client UI does not — REALITY forwards unknown handshakes to the disguised `dest`, so a probe can "succeed" while the VLESS handshake fails.
+
+From the client machine, through the client's local mixed port (Mihomo default `7890`):
+
+```bash
+curl --proxy http://127.0.0.1:7890 -s https://api.ipify.org
+```
+
+The returned address must be the VPS public IP, not the client's own.
+
+Or on the VPS, watch live evidence while loading a site through the client:
+
+```bash
+journalctl -u xray -f | grep 'accepted tcp'
+```
+
+Lines carrying the client's real IP prove the full chain: client -> handshake -> proxy -> Internet.
+
+Question answered: does an actual request traverse the whole path?
+
 ## Symptom mapping
 
 ### `connection refused`

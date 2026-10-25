@@ -11,7 +11,7 @@ Reasoning:
 
 ## Minimal deployment path
 
-1. install Xray-core from the official installer
+1. install Xray-core via the official [`XTLS/Xray-install`](https://github.com/XTLS/Xray-install) script, using the download-then-run pattern from [`bootstrap-ubuntu.md`](bootstrap-ubuntu.md#third-party-script-stance) rather than raw `curl | sh`
 2. generate UUID, x25519 key pair, and short ID
 3. write a minimal VLESS + REALITY config
 4. validate the config
@@ -62,6 +62,7 @@ Choose a destination that is:
 - TLS-enabled
 - stable
 - supportive of TLS 1.3 / HTTP/2 in practice
+- not redirecting to a different host — a redirecting `dest` betrays the disguise when probed
 
 Use the same host consistently in server-side `dest`, `serverNames`, and the client's `servername`.
 
@@ -88,9 +89,14 @@ timeout 3 bash -lc '</dev/tcp/127.0.0.1/443' && echo OPEN || echo CLOSED
 
 A service can be `active` while failing to create the listener.
 
-## Privileged port caution
+## Privileged port
 
-When binding `:443`, remember it is a privileged port.
+Binding `:443` requires `CAP_NET_BIND_SERVICE`. Prefer granting exactly that capability over running as root:
+
+- a systemd drop-in with `AmbientCapabilities=CAP_NET_BIND_SERVICE`, or
+- `sudo setcap cap_net_bind_service=+ep /usr/local/bin/xray`
+
+`User=root` also works but keeps far more privilege than the bind needs; treat it as a stopgap, not the design.
 
 If the process is active but not listening, check:
 - runtime user
@@ -128,6 +134,8 @@ Use the bundled collector when debugging Xray service state:
 ```bash
 ./scripts/collect_xray_diagnostics.sh
 ```
+
+Both bundled scripts are location-independent and configurable via environment variables (`SERVICE_NAME`, `CONFIG_PATH`, `XRAY_BIN`, `PORT` — for example `PORT=8443` when isolating privileged-port issues).
 
 ## Client field mapping
 

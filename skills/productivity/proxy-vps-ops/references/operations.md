@@ -90,6 +90,16 @@ Once Tailscale management is proven stable, decide deliberately whether public S
 
 Do not leave this ambiguous forever. Record the policy in the state file.
 
+## UFW and Tailscale
+
+UFW's default-deny also filters the `tailscale0` interface. If management over Tailscale starts failing after firewall changes, allow the tailnet interface explicitly:
+
+```bash
+sudo ufw allow in on tailscale0
+```
+
+Then re-check `tailscale status` and SSH over the tailnet IP before touching anything else.
+
 ## Service posture
 
 If a temporary workaround such as running as root was used to restore service, keep it working first and only redesign later with a clear verification plan.

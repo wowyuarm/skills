@@ -39,6 +39,15 @@
 - **Client app:**
 - **Server config path:**
 
+### Client-facing values
+The values a rebuild must reproduce exactly; changing any of them breaks every client.
+- **UUID:**
+- **REALITY public key:**
+- **Short ID:**
+- **servername / serverNames:**
+- **dest:**
+- **Address used by clients:** public IP / tailnet IP
+
 ## Verified Facts
 
 - 

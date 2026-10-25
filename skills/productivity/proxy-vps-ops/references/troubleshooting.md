@@ -70,18 +70,11 @@ Do not assume config syntax validation proves bind success.
 
 ## Symptom: client shows "connected" (with latency number) but no sites load
 
-This looks like handshake-level failure even though the client UI says it is connected. Happens often with iOS Shadowrocket and REALITY.
+Mechanism: REALITY accepts any TCP 443 connection — unknown handshakes fall through to the disguised `dest` — so a latency probe succeeds and the client reports "connected" even when the VLESS handshake is silently failing on a wrong or missing REALITY field.
 
-Mechanism: clients report a latency number as soon as raw TCP 443 accepts. REALITY happily accepts any TCP 443 connection because its fallback forwards unknown handshakes to the disguised `dest` (for example `www.cloudflare.com:443`). So the client's latency test succeeds, the client marks the node "connected", but the actual VLESS handshake silently fails because a REALITY field is wrong or missing.
+Decisive check: grep the Xray journal for the client's real IP. Minutes of connecting with no `accepted tcp` line for that IP means the VLESS handshake never reached the proxy logic — fix the client, not the server.
 
-Decisive check: read the Xray journal and filter by the client's real IP. If the client has been connecting for several minutes and no log line shows its source IP inside `from <ip>:<port> accepted tcp:...`, the client's VLESS handshake never reached the proxy logic. Do not edit server config. Fix the client.
-
-Most common client-side causes for this pattern:
-- URL import dropped one of `flow`, `publicKey`, `shortId`, or `fingerprint`
-- client's REALITY field name differs from the URL param name and the import silently ignored it
-- older client version has partial REALITY support
-
-Fix: manually enter every REALITY field in the client UI, do not rely on URL / QR import. If the app still fails after manual entry, switch to a client with first-class REALITY support (for example V2Box on iOS).
+The most common cause is URL / QR import silently dropping `flow`, `publicKey`, `shortId`, or `fingerprint` (notoriously on iOS Shadowrocket). For the manual-entry fix and client alternatives, see [`mihomo-client.md`](mihomo-client.md#ios-clients-and-reality-url-import).
 
 ## Symptom: client works but speed is poor
 
