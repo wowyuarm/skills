@@ -19,8 +19,17 @@ A skill is a directory named `<skill-name>/` containing `SKILL.md`. The location
 | --- | --- | --- |
 | Pi | `~/.pi/agent/skills/` | `.pi/skills/` (project root) |
 | Claude Code | `~/.claude/skills/` | `.claude/skills/` |
+| Codex | `~/.codex/skills/` | — |
 
 "Install" means creating or copying the directory into the chosen root; no registration command is needed. When unsure where the current harness looks, check its docs before placing files; if the target harness or scope is ambiguous, ask the user. For the Pi harness, install globally under `~/.pi/agent/skills/` unless the user asks for a project-local skill.
+
+When skills are maintained in a source repository, prefer installing by symlink rather than by copy — copies drift stale as the repository evolves:
+
+```bash
+ln -s /abs/path/to/repo/skills/<group>/<skill-name> ~/.pi/agent/skills/<skill-name>
+```
+
+Harnesses follow the link and read the live files, so one repository update reaches every harness at once. Re-create links only when a skill is added, renamed, or moved.
 
 Use a short lowercase hyphenated name. Keep the directory name and the `name` field the same.
 

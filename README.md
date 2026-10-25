@@ -20,7 +20,7 @@ Skills live under `skills/` in two groups: `engineering/` for daily code work an
 
 #### User-invoked
 
-- [`bilibili-custom-feeds`](skills/productivity/bilibili-custom-feeds/SKILL.md) — build and tune a personal, rule-authored Bilibili feed as a Tampermonkey userscript running in the user's own logged-in browser; seeds from the user's own coined/favorited/finished videos, expands via related videos, and can build long-video feeds from the accounts they follow
+- [`bilibili-custom-feeds`](skills/productivity/bilibili-custom-feeds/SKILL.md) — build and tune a personal, rule-authored Bilibili feed as a Tampermonkey userscript running in your own logged-in browser
 - [`proxy-vps-ops`](skills/productivity/proxy-vps-ops/SKILL.md) — manage the lifecycle of a self-hosted VPS used as a personal proxy node
 
 #### Model-invoked

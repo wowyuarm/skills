@@ -44,7 +44,7 @@ Requires: a git repo, a test suite that runs to completion unattended (each abla
 - **Zero adjusted failures across all deletion targets** means the import graph fully explains test coupling: no shared hidden state, no fixture bridges. Strong architecture evidence; report it as the headline.
 - **Stub footprint ≫ static fan-in** means runtime indirection hides coupling. This is where ablation beats static analysis.
 - **Closure tiers** (bottom / middle / top of the dependency stack) price refactors: changes at the bottom propagate to ~2/3 of the repo; top-layer modules are nearly free to touch.
-- For 拆包/删代码 decisions: ablation evidence most often supports *not* acting. Dead weight shows up as a module whose ablation leaves the suite fully green — if that never happens, say "nothing to delete" plainly.
+- For delete-code / split-package decisions: ablation evidence most often supports *not* acting. Dead weight shows up as a module whose ablation leaves the suite fully green — if that never happens, say "nothing to delete" plainly.
 
 ## Other languages and layouts
 
