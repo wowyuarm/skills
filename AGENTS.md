@@ -30,9 +30,14 @@ Current skills:
 
 - `skills/engineering/codebase-ablation/`
 - `skills/engineering/deepwiki/`
+- `skills/engineering/diagnosing-bugs/`
+- `skills/engineering/domain-modeling/`
+- `skills/engineering/research/`
+- `skills/engineering/tdd/`
 - `skills/engineering/ax-init/`
 - `skills/engineering/ax-review/`
 - `skills/productivity/ai-discussion-recap/`
+- `skills/productivity/grilling/`
 - `skills/productivity/bilibili-custom-feeds/`
 - `skills/productivity/machine-identity-reset/`
 - `skills/productivity/proxy-vps-ops/`

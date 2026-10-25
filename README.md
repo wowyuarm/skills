@@ -19,6 +19,10 @@ Skills live under `skills/` in two groups: `engineering/` for daily code work an
 
 - [`codebase-ablation`](skills/engineering/codebase-ablation/SKILL.md) — measure a module's real load-bearing role by deleting or stubbing it and running the test suite; coupling map, blast radius, hidden-dependency detection
 - [`deepwiki`](skills/engineering/deepwiki/SKILL.md) — query DeepWiki documentation for public GitHub repositories over HTTP
+- [`diagnosing-bugs`](skills/engineering/diagnosing-bugs/SKILL.md) — hard-bug diagnosis loop: build a tight red-capable feedback loop first, then reproduce, hypothesise, instrument, fix, clean up
+- [`domain-modeling`](skills/engineering/domain-modeling/SKILL.md) — build and sharpen a project's domain model: glossary discipline, edge-case scenarios, sparing ADRs
+- [`research`](skills/engineering/research/SKILL.md) — investigate a question against high-trust primary sources and capture the findings as a cited Markdown file
+- [`tdd`](skills/engineering/tdd/SKILL.md) — test-driven development: red-green loop at pre-agreed seams, with what a good test is and the anti-patterns
 
 ### Productivity
 
@@ -31,6 +35,7 @@ Skills live under `skills/` in two groups: `engineering/` for daily code work an
 #### Model-invoked
 
 - [`ai-discussion-recap`](skills/productivity/ai-discussion-recap/SKILL.md) — summarize useful recent discussion from local Claude Code, Codex, and Pi session logs
+- [`grilling`](skills/productivity/grilling/SKILL.md) — stress-test a plan or decision relentlessly: interview in frontier rounds until nothing is silently assumed
 - [`skill-manager`](skills/productivity/skill-manager/SKILL.md) — create, install, revise, or retire agent skills across harnesses, including skill-local configuration and credentials
 
 ## Notes

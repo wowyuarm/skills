@@ -13,4 +13,5 @@ Entries are grouped by how they are reached: **User-invoked** skills fire only w
 ## Model-invoked
 
 - [`ai-discussion-recap`](ai-discussion-recap/SKILL.md) — summarize useful recent discussion from local Claude Code, Codex, and Pi session logs
+- [`grilling`](grilling/SKILL.md) — stress-test a plan or decision relentlessly: interview in frontier rounds until nothing is silently assumed
 - [`skill-manager`](skill-manager/SKILL.md) — create, install, revise, or retire agent skills across harnesses, including skill-local configuration and credentials
