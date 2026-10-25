@@ -12,8 +12,8 @@ Entries are grouped by how they are reached: **User-invoked** skills fire only w
 ## Model-invoked
 
 - [`codebase-ablation`](codebase-ablation/SKILL.md) — measure a module's real load-bearing role by deleting or stubbing it and running the test suite; coupling map, blast radius, hidden-dependency detection
+- [`codebase-design`](codebase-design/SKILL.md) — shared vocabulary for designing deep modules: module, interface, depth, seam, adapter, leverage, locality
 - [`deepwiki`](deepwiki/SKILL.md) — query DeepWiki documentation for public GitHub repositories over HTTP
 - [`diagnosing-bugs`](diagnosing-bugs/SKILL.md) — hard-bug diagnosis loop: build a tight red-capable feedback loop first, then reproduce, hypothesise, instrument, fix, clean up
-- [`domain-modeling`](domain-modeling/SKILL.md) — build and sharpen a project's domain model: glossary discipline, edge-case scenarios, sparing ADRs
 - [`research`](research/SKILL.md) — investigate a question against high-trust primary sources and capture the findings as a cited Markdown file
 - [`tdd`](tdd/SKILL.md) — test-driven development: red-green loop at pre-agreed seams, with what a good test is and the anti-patterns
