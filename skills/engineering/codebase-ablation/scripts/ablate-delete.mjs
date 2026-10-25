@@ -3,22 +3,32 @@
 // dependency closure (src + test), build the remainder, run surviving tests.
 //
 // Usage: node ablate-delete.mjs <repoDir> <targetRel> <outJson>
-//   targetRel is a directory or file path relative to src/ (e.g. "runtime", "channels/raft").
+//   targetRel is a directory or file path relative to src/ (e.g. "runtime",
+//   "channels/raft", "channels/raft.ts" — the file form needs its extension;
+//   a bare stem without extension is also tried against .ts/.tsx/.mts/.cts).
 // Env:
 //   ABLATION_BUILD_CMD  command that produces a runnable build (default "npm run build")
 //   ABLATION_TEST_CMD   command that runs the full suite   (default "npm test")
-// Each run happens in a throwaway git worktree; the caller's checkout is never touched.
+// Each run happens in a throwaway git worktree (under the OS temp dir, path
+// unique per repo and target); the caller's checkout is never touched.
 import { execSync, spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
+import { createHash } from "node:crypto";
+import os from "node:os";
 import path from "node:path";
 import { buildGraph, reverseClosure, listTsFiles } from "./graph.mjs";
 
+if (process.argv.length !== 5) {
+  console.error("Usage: node ablate-delete.mjs <repoDir> <targetRel> <outJson>");
+  process.exit(2);
+}
 const [repoDirRaw, targetRel, outJson] = process.argv.slice(2);
 const repoDir = path.resolve(repoDirRaw);
 const buildCmd = process.env.ABLATION_BUILD_CMD ?? "npm run build";
 const testCmd = process.env.ABLATION_TEST_CMD ?? "npm test";
-const slug = targetRel.replaceAll("/", "__");
-const worktrees = "/tmp/codebase-ablation";
+const repoTag = createHash("sha256").update(repoDir).digest("hex").slice(0, 8);
+const slug = `${repoTag}__${targetRel.replaceAll("/", "__")}`;
+const worktrees = path.join(os.tmpdir(), "codebase-ablation");
 const wt = path.join(worktrees, slug);
 
 const fail = (json, stage, error) => {
@@ -52,6 +62,10 @@ try {
   if (!existsSync(wt)) throw new Error(`worktree missing after add: ${wt}`);
   const nm = path.join(repoDir, "node_modules");
   if (existsSync(nm)) symlinkSync(nm, path.join(wt, "node_modules"));
+  // The build/partial logic assumes all compiled output came from THIS run;
+  // a repo that tracks its dist/ in git would otherwise leak stale
+  // pre-ablation artifacts into the worktree and the measurement.
+  rmSync(path.join(wt, "dist"), { recursive: true, force: true });
 
   // 1. Closure from the worktree's own graph.
   const graph = buildGraph(wt);
@@ -60,7 +74,8 @@ try {
   try {
     targets = listTsFiles(srcTarget);
   } catch {
-    targets = existsSync(srcTarget) ? [srcTarget] : [];
+    if (existsSync(srcTarget)) targets = [srcTarget];
+    else targets = [".ts", ".tsx", ".mts", ".cts"].map((e) => srcTarget + e).filter((p) => existsSync(p));
   }
   if (targets.length === 0) throw new Error(`no target files under src/${targetRel}`);
   const closure = reverseClosure(graph, targets);

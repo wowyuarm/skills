@@ -7,14 +7,26 @@ import path from "node:path";
 import { buildGraph, reverseClosure, listTsFiles } from "./graph.mjs";
 
 const [repoDir, outJson] = process.argv.slice(2);
-const graph = buildGraph(repoDir);
+if (process.argv.length !== 4) {
+  console.error("Usage: node couple-map.mjs <repoDir> <outJson>");
+  process.exit(2);
+}
+let graph;
+try {
+  graph = buildGraph(repoDir);
+} catch (e) {
+  console.error(
+    `couple-map: ${e.message}.\n` +
+      `For other layouts, adapt scripts/graph.mjs first (see references/other-languages.md).`,
+  );
+  process.exit(1);
+}
 const rel = (p) => path.relative(repoDir, p);
 const srcFiles = [...graph.files.keys()].filter((f) => rel(f).startsWith("src/"));
 if (srcFiles.length === 0) {
   console.error(
     `couple-map: no TypeScript files found under ${path.join(path.resolve(repoDir), "src")}.\n` +
-      `The bundled graph resolver assumes a src/ + test/ TS layout with relative imports. ` +
-      `For other layouts, adapt scripts/graph.mjs first (see SKILL.md "Other languages and layouts").`,
+      `For other layouts, adapt scripts/graph.mjs first (see references/other-languages.md).`,
   );
   process.exit(1);
 }

@@ -1,7 +1,10 @@
-// Static import graph over src/ and test/ for Loom ablation experiments.
+// Static import graph over src/ and test/ for ablation experiments.
 // Only relative imports matter; package imports are ignored.
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import path from "node:path";
+
+const TS_FILE_RE = /\.[cm]?tsx?$/; // .ts .tsx .mts .cts
+const TS_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts"];
 
 export function listTsFiles(rootDir) {
   const out = [];
@@ -9,20 +12,11 @@ export function listTsFiles(rootDir) {
     for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
-      else if (entry.name.endsWith(".ts")) out.push(full);
+      else if (TS_FILE_RE.test(entry.name)) out.push(full);
     }
   };
   walk(rootDir);
   return out;
-}
-
-function resolveImport(fromFile, spec, rootDir) {
-  if (!spec.startsWith(".")) return null;
-  const base = path.resolve(path.dirname(fromFile), spec.replace(/\.js$/, ".ts"));
-  if (statSyncSafe(base)) return base;
-  const asIndex = path.join(base, "index.ts");
-  if (statSyncSafe(asIndex)) return asIndex;
-  return null;
 }
 
 function statSyncSafe(p) {
@@ -33,14 +27,35 @@ function statSyncSafe(p) {
   }
 }
 
+// Resolve a relative import specifier to a source file, covering
+// extensionless specs, TS-extension specs, .js/.mjs/.cjs compile-output
+// specs, and directory index files.
+function resolveImport(fromFile, spec) {
+  if (!spec.startsWith(".")) return null;
+  const base = path.resolve(path.dirname(fromFile), spec);
+  let stems;
+  if (/\.js$/.test(spec)) stems = [base.slice(0, -3) + ".ts", base.slice(0, -3) + ".tsx"];
+  else if (/\.mjs$/.test(spec)) stems = [base.slice(0, -4) + ".mts"];
+  else if (/\.cjs$/.test(spec)) stems = [base.slice(0, -4) + ".cts"];
+  else if (TS_EXTENSIONS.some((e) => spec.endsWith(e))) stems = [base];
+  else stems = TS_EXTENSIONS.map((e) => base + e);
+  const candidates = [...stems, ...stems.map((s) => path.join(s, "index.ts")), ...stems.map((s) => path.join(s, "index.tsx"))];
+  for (const c of candidates) {
+    if (statSyncSafe(c)) return c;
+  }
+  return null;
+}
+
 // Returns { files: Map<absPath, string[] deps>, roots: { src, test } }
 export function buildGraph(rootDir) {
   rootDir = path.resolve(rootDir);
   const srcRoot = path.join(rootDir, "src");
+  if (!existsSync(srcRoot)) {
+    throw new Error(`no src/ directory under ${rootDir} (the resolver assumes a src/ + test/ TypeScript layout)`);
+  }
   const testRoot = path.join(rootDir, "test");
   const files = new Map(); // abs -> deps[]
   const add = (abs) => {
-    if (!existsSync(abs)) return;
     const text = readFileSync(abs, "utf8");
     const specs = [];
     for (const m of text.matchAll(/from\s*["']([^"']+)["']/g)) specs.push(m[1]);
@@ -48,7 +63,7 @@ export function buildGraph(rootDir) {
     for (const m of text.matchAll(/\bimport\s*\(\s*["']([^"']+)["']\s*\)/g)) specs.push(m[1]);
     const deps = [];
     for (const spec of specs) {
-      const resolved = resolveImport(abs, spec, rootDir);
+      const resolved = resolveImport(abs, spec);
       if (resolved) deps.push(resolved);
     }
     files.set(abs, deps);
