@@ -1,3 +1,5 @@
 interface:
   display_name: "Proxy VPS Ops"
   short_description: "Run a self-hosted proxy VPS end to end"
+policy:
+  allow_implicit_invocation: false

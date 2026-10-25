@@ -1,6 +1,7 @@
 ---
 name: bilibili-custom-feeds
-description: Build and tune a personal, rule-authored video feed for one Bilibili user, delivered as a Tampermonkey userscript that runs in their own logged-in browser. Use when someone wants to define their own Bilibili recommendations instead of the platform algorithm, wants more of the kind of video they coin/favorite/finish, wants a feed built from the accounts they follow, wants long videos or long-video completion weighted higher, or asks to adjust an existing bilibili-custom-feeds script. Covers seed selection from the user's own history, expansion via related videos, interaction-density and length-weighted ranking, the shared follow-activity feed, and the API capabilities and hard caps that constrain all of it.
+description: Build and tune a personal, rule-authored Bilibili feed — a Tampermonkey userscript running in your own logged-in browser, driven by a plain config you edit.
+disable-model-invocation: true
 ---
 
 # Bilibili Custom Feeds

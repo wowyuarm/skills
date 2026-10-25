@@ -1,6 +1,7 @@
 ---
 name: proxy-vps-ops
-description: Plan, bootstrap, operate, verify, troubleshoot, optimize, migrate, and rebuild a self-hosted VPS used as a personal proxy node. Use when working on VPS region or billing choices, Ubuntu baseline setup, Tailscale management access, Xray-core with VLESS + REALITY deployment, Mihomo/Clash client configuration, optional Surge + Snell + ShadowTLS alternative deployments when explicitly requested, listener or firewall debugging, day-2 maintenance, performance tuning, or node replacement and recovery.
+description: Plan, run, and fix a self-hosted VPS personal proxy node end to end — Xray + REALITY proxy plane, Tailscale management plane, Mihomo client.
+disable-model-invocation: true
 ---
 
 # Proxy VPS Ops

@@ -18,11 +18,14 @@ Skills live under `skills/` in two groups: `engineering/` for daily code work an
 
 ### Productivity
 
+#### User-invoked
+
+- [`bilibili-custom-feeds`](skills/productivity/bilibili-custom-feeds/SKILL.md) — build and tune a personal, rule-authored Bilibili feed as a Tampermonkey userscript running in the user's own logged-in browser; seeds from the user's own coined/favorited/finished videos, expands via related videos, and can build long-video feeds from the accounts they follow
+- [`proxy-vps-ops`](skills/productivity/proxy-vps-ops/SKILL.md) — manage the lifecycle of a self-hosted VPS used as a personal proxy node
+
 #### Model-invoked
 
 - [`ai-discussion-recap`](skills/productivity/ai-discussion-recap/SKILL.md) — summarize useful recent discussion from local Claude Code, Codex, and Pi session logs
-- [`bilibili-custom-feeds`](skills/productivity/bilibili-custom-feeds/SKILL.md) — build and tune a personal, rule-authored Bilibili feed as a Tampermonkey userscript running in the user's own logged-in browser; seeds from the user's own coined/favorited/finished videos, expands via related videos, and can build long-video feeds from the accounts they follow
-- [`proxy-vps-ops`](skills/productivity/proxy-vps-ops/SKILL.md) — manage the lifecycle of a self-hosted VPS used as a personal proxy node
 - [`skill-manager`](skills/productivity/skill-manager/SKILL.md) — create, install, revise, or retire agent skills across harnesses, including skill-local configuration and credentials
 
 ## Notes

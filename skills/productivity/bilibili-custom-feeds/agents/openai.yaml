@@ -1,3 +1,5 @@
 interface:
   display_name: "Bilibili Custom Feeds"
   short_description: "Build a personal rule-authored Bilibili feed"
+policy:
+  allow_implicit_invocation: false
