@@ -13,10 +13,11 @@ Use this skill when the user wants a recap of recent Claude Code, Codex, or Pi d
    Claude Code under `~/.claude/projects/`
    Codex under `~/.codex/sessions/`
    Pi under `~/.pi/agent/sessions/`
-2. Use `scripts/extract_ai_discussions.py` to list recent candidate sessions for the current repo or an explicitly provided project path.
-3. Read the extracted markdown or JSON output first. Open raw JSONL files only for the most relevant sessions.
-4. Summarize the discussion into decisions, reasoning, open questions, and next steps.
-5. Quote sparingly. Prefer short excerpts and clear synthesis.
+2. Use `scripts/extract_ai_discussions.py` to list recent candidate sessions for the current repo or an explicitly provided project path. (The script is a thin CLI over the `scripts/ai_recap/` package: one module per store plus shared model and rendering.)
+3. If the report shows `Sessions: 0`, stop and say so — do not invent a recap. Check the store paths, widen `--days`, verify the project path, or query the stores one at a time with `--source`.
+4. Read the extracted markdown or JSON output first. Open raw JSONL files only for the most relevant sessions.
+5. Summarize the discussion into decisions, reasoning, open questions, and next steps.
+6. Quote sparingly. Prefer short excerpts and clear synthesis.
 
 ## Subagent Pattern
 
@@ -44,15 +45,14 @@ If the user is asking for "recent discussions", "what did we conclude recently",
 
 ```bash
 python3 skills/productivity/ai-discussion-recap/scripts/extract_ai_discussions.py \
-  --project /home/yu/projects/HaL \
   --days 14 \
   --max-sessions 8
 ```
 
-Adjust the path to match where this repo lives. When installed via `npx skills add` the script lives under `~/.codex/skills/ai-discussion-recap/scripts/extract_ai_discussions.py` or the equivalent for the target harness.
+Run it from the repo in question — sessions are matched by repo path. Pass `--project /abs/path` for a different repo, or `--project-slug <slug>` to point at an explicit Claude project directory under `~/.claude/projects/`. Adjust the script path to match where this repo lives. When installed via `npx skills add` the script lives under `~/.codex/skills/ai-discussion-recap/scripts/extract_ai_discussions.py` or the equivalent for the target harness.
 
-If you need structured output for further filtering or your own analysis, add `--json`.
-Use `--source claude`, `--source codex`, or `--source pi` when you only want one store. Combine `--max-sessions` with `--per-source` to keep some diversity when one store would otherwise crowd out the others.
+If you need structured output for further filtering or your own analysis, add `--json` — the JSON carries the full text of every turn, so it can be very large; the markdown report stays compact.
+Use `--source claude`, `--source codex`, or `--source pi` when you only want one store. Combine `--max-sessions` with `--per-source` to keep some diversity when one store would otherwise crowd out the others. Add `--keyword <word>` (repeatable) to bias ranking toward sessions whose first user turn mentions it.
 
 For very noisy sessions or pasted logs, prefer the extractor output first because it collapses long text and keeps the most useful edges of the conversation.
 
@@ -65,7 +65,7 @@ Treat these as high-signal and worth summarizing:
 - Sessions where the first user message is substantive rather than a tiny follow-up like `continue`, `ok`, or `run tests`.
 - Long pasted inputs only when they frame a design question, decision, or debugging direction.
 - Codex or Pi sessions whose `cwd` matches the current project and contain real `user` and `assistant` messages after injected setup or runtime records.
-- Claude Code sessions matched either by slug or by the first record's `cwd` field. When the slug does not exist or only contains subagent directories, the script falls back to a recursive scan and filters by cwd.
+- Claude Code sessions matched either by slug or by the first record's `cwd` field. When the slug directory is missing or yields fewer recent sessions than requested (for example it only contains subagent transcripts), the script falls back to a recursive scan of the whole store and filters by `cwd`.
 
 Treat these as low-signal unless the user explicitly asks for them:
 
@@ -81,7 +81,7 @@ The script already filters aggressively, but if you inspect raw JSONL yourself, 
 - `type == "user"` with real message text (skip records that start with `<local-command-caveat>`, `<local-command-stdout>`, `<system-reminder>`, or other Claude-injected prefixes)
 - `type == "assistant"` text blocks only
 - `type == "user_message"` or `payload.content` only when they contain real conversational text
-- in Codex rollout files, `response_item` entries whose payload is `message` and role is `user` or `assistant`, after dropping any block whose combined text matches the configured Codex noise patterns
+- in Codex rollout files, `response_item` entries whose payload is `message` and role is `user` or `assistant`, after dropping any message whose combined text starts with one of the configured Codex noise prefixes
 - in Pi JSONL files, `type == "message"` records whose nested `message.role` is `user` or `assistant`, keeping only text blocks. Consecutive identical turns are deduped.
 
 Ignore tool-use blocks, tool results, event noise, Codex injected `developer` setup messages, and Pi runtime records like `model_change`, `thinking_level_change`, `custom`, plus `thinking` and `toolCall` blocks unless they directly explain a decision.
