@@ -30,6 +30,7 @@ Current skills:
 
 - `skills/engineering/codebase-ablation/`
 - `skills/engineering/codebase-design/`
+- `skills/engineering/discussion/`
 - `skills/engineering/deepwiki/`
 - `skills/engineering/diagnosing-bugs/`
 - `skills/engineering/domain-modeling/`

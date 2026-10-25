@@ -14,6 +14,7 @@ Skills live under `skills/` in two groups: `engineering/` for daily code work an
 
 - [`ax-init`](skills/engineering/ax-init/SKILL.md) — initialize or retrofit a repository's agent layer: short root `AGENTS.md`, `.scratch/` work area, optional `docs/` skeleton
 - [`ax-review`](skills/engineering/ax-review/SKILL.md) — audit a repository's agent experience: mechanical link/reference checks plus a simulated cold-start walk
+- [`discussion`](skills/engineering/discussion/SKILL.md) — run a converging multi-round discussion (research, explore, decide) into a `.scratch` work item: DESIGN.md plus tracer-bullet tickets
 
 #### Model-invoked
 
