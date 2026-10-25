@@ -63,7 +63,8 @@ class Skill:
                 self.errors.append(f"YAML parse error: {exc}")
                 return
             value = data.get("disable-model-invocation")
-            disable_model_invocation = None if value is None else str(value)
+            # YAML parses an unquoted true into a bool; accept both forms.
+            disable_model_invocation = None if value is None else str(value).lower()
         else:
             name_match = NAME_RE.search(frontmatter)
             desc_match = DESCRIPTION_RE.search(frontmatter)
