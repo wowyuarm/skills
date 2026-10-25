@@ -1,6 +1,7 @@
 ---
 name: ax-init
-description: Initialize or retrofit a repository's agent-experience (ax) layer - a short root AGENTS.md that carries only always-on rules and routes everything else, a .scratch/ cross-session work area with ticket discipline, and an optional docs/ skeleton (docs/AGENTS.md + docs/README.md routing index). Use when setting up a repo for agent work, when an agent lands in a repo without this layer, or when the user asks to initialize a repo, bootstrap AGENTS.md, set up docs or .scratch, 搭骨架, 初始化项目.
+description: Bootstrap a repository's agent layer - a short root AGENTS.md, a .scratch/ cross-session work area, and an optional docs/ skeleton. Run when starting a new repo or retrofitting an existing one for agent work.
+disable-model-invocation: true
 ---
 
 # ax-init

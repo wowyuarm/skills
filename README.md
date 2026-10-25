@@ -10,11 +10,14 @@ Skills live under `skills/` in two groups: `engineering/` for daily code work an
 
 ### Engineering
 
+#### User-invoked
+
+- [`ax-init`](skills/engineering/ax-init/SKILL.md) — initialize or retrofit a repository's agent layer: short root `AGENTS.md`, `.scratch/` work area, optional `docs/` skeleton
+
 #### Model-invoked
 
 - [`codebase-ablation`](skills/engineering/codebase-ablation/SKILL.md) — measure a module's real load-bearing role by deleting or stubbing it and running the test suite; coupling map, blast radius, hidden-dependency detection
 - [`deepwiki`](skills/engineering/deepwiki/SKILL.md) — query DeepWiki documentation for public GitHub repositories over HTTP
-- [`ax-init`](skills/engineering/ax-init/SKILL.md) — initialize or retrofit a repository's agent layer: short root `AGENTS.md`, `.scratch/` work area, optional `docs/` skeleton
 
 ### Productivity
 
