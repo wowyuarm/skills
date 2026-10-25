@@ -1,0 +1,12 @@
+# Productivity
+
+Skills for daily non-code workflow.
+
+Entries are grouped by how they are reached: **User-invoked** skills fire only when the human types their name (`disable-model-invocation: true`); **Model-invoked** skills the agent may also discover and run on its own.
+
+## Model-invoked
+
+- [`ai-discussion-recap`](ai-discussion-recap/SKILL.md) — summarize useful recent discussion from local Claude Code, Codex, and Pi session logs
+- [`bilibili-custom-feeds`](bilibili-custom-feeds/SKILL.md) — build and tune a personal, rule-authored Bilibili feed as a Tampermonkey userscript running in the user's own logged-in browser
+- [`proxy-vps-ops`](proxy-vps-ops/SKILL.md) — manage the lifecycle of a self-hosted VPS used as a personal proxy node
+- [`skill-manager`](skill-manager/SKILL.md) — create, install, revise, or retire agent skills across harnesses, including skill-local configuration and credentials
