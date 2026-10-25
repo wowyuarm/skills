@@ -101,6 +101,38 @@ Run the validator after any change to `SKILL.md` files, layout, indexes, or scri
 - Do not commit local runtime ledgers such as `**/references/current-state.local.md`.
 - When a skill needs mutable state, commit a template and ignore the live local file.
 
+### Sanitization
+
+Skills are published. Anything written into a tracked file is public, so treat
+examples as documentation for strangers rather than a transcript of this machine.
+
+Use placeholders for anything that identifies a person or a host:
+
+| Instead of | Write |
+| --- | --- |
+| a real home path, e.g. `/home/alice/projects/api` | `/home/<user>/projects/<repo>` |
+| a real Windows path, e.g. `C:\Users\alice\...` | `C:\Users\<user>\...` |
+| a real device ID, account UUID, or machine ID | `<device-id>`, `<account-uuid>`, `<machine-id>` |
+| a real email, hostname, or public IP | `<email>`, `<host>`, `<ip>` |
+| a real API key or token | a placeholder, or `$ENV_VAR` |
+
+Slug and path transformations are the useful part of an example; the concrete
+path is not. Show the rule (`/home/<user>/a/b` → `-home-<user>-a-b`), not the
+path it was derived from.
+
+Some values look identifying but are not personal — a constant baked into a
+third-party tool is the same for every user of that tool. Check what a value is
+before replacing it; genericizing a shared constant makes the document wrong
+without making it safer.
+
+Credentials belong in a skill-local `auth.json` (ignored), read at run time; see
+`skills/productivity/skill-manager/SKILL.md`. Environment variables and CLI
+arguments are acceptable alternatives when the credential is supplied per run.
+
+Before committing, grep the staged content for the patterns above. A value that
+only ever appeared in local-only files is already covered by `.gitignore`; a
+value in a tracked file is not.
+
 ## Borrowed Skills
 
 - The repository organization follows [mattpocock/skills](https://github.com/mattpocock/skills) (MIT); the top-level `README.md` carries the acknowledgement.

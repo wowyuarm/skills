@@ -13,6 +13,9 @@ __pycache__/
 # Skill runtime state
 **/references/current-state.local.md
 
+# Skill credentials (see skill-manager)
+**/auth.json
+
 # Untracked skill
 xi/
 
