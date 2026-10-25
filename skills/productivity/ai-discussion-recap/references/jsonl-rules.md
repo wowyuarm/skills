@@ -17,12 +17,12 @@ Pi histories are typically stored under:
 - `~/.pi/agent/sessions/<project-slug>/*.jsonl`
 
 A Claude project slug usually matches the absolute project path with `/` replaced by `-`.
-Example: `/home/yu/projects/HaL` -> `-home-yu-projects-HaL`
+Example: `/home/<user>/projects/<repo>` -> `-home-<user>-projects-<repo>`
 
 When the slug directory is missing or yields fewer recent sessions than requested, fall back to scanning every `*.jsonl` under `~/.claude/projects/` and matching the first record's `cwd` field against the target project path (bounded to 200 candidates). The first record also exposes `gitBranch` and `model`, which are surfaced in the recap.
 
 A Pi project slug usually strips leading/trailing `/`, replaces `/` with `-`, then wraps the result in `--`.
-Example: `/home/yu/projects/HaL` -> `--home-yu-projects-HaL--`
+Example: `/home/<user>/projects/<repo>` -> `--home-<user>-projects-<repo>--`
 
 ## High-signal records
 
