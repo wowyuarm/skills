@@ -30,7 +30,7 @@ Current skills:
 
 - `skills/engineering/codebase-ablation/`
 - `skills/engineering/deepwiki/`
-- `skills/engineering/repo-init/`
+- `skills/engineering/ax-init/`
 - `skills/productivity/ai-discussion-recap/`
 - `skills/productivity/bilibili-custom-feeds/`
 - `skills/productivity/machine-identity-reset/`
@@ -164,6 +164,6 @@ value in a tracked file is not.
 
 - `README.md`
 - `scripts/validate_skills.py`
-- `skills/engineering/repo-init/SKILL.md`
+- `skills/engineering/ax-init/SKILL.md`
 - `skills/productivity/proxy-vps-ops/SKILL.md`
 - `skills/productivity/skill-manager/SKILL.md`

@@ -8,4 +8,4 @@ Entries are grouped by how they are reached: **User-invoked** skills fire only w
 
 - [`codebase-ablation`](codebase-ablation/SKILL.md) — measure a module's real load-bearing role by deleting or stubbing it and running the test suite; coupling map, blast radius, hidden-dependency detection
 - [`deepwiki`](deepwiki/SKILL.md) — query DeepWiki documentation for public GitHub repositories over HTTP
-- [`repo-init`](repo-init/SKILL.md) — create `AGENTS.md` for a repository from its real files and conventions
+- [`ax-init`](ax-init/SKILL.md) — initialize or retrofit a repository's agent layer: short root `AGENTS.md`, `.scratch/` work area, optional `docs/` skeleton

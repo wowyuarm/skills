@@ -1,3 +1,0 @@
-interface:
-  display_name: "Repo Init"
-  short_description: "Write AGENTS.md from a repo's real files"
